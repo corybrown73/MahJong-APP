@@ -36,6 +36,14 @@ import { useStats } from './stats';
 
 export const HUMAN: SeatId = 0;
 
+/** The house book's words for a call, used on the announcement banner. */
+const CALL_HEADLINES: Record<CallType, string> = {
+  chow: 'CHOW',
+  pung: 'PONG',
+  kang: 'KONG',
+  todas: 'MAHJONGG',
+};
+
 export type Banner = {
   seat: SeatId;
   headline: string;
@@ -200,12 +208,12 @@ export const useGame = create<GameStore>((set, get) => {
         const from = event.from === null ? '' : `from ${names[event.from].toLowerCase()}`;
         return {
           seat: event.seat,
-          headline: event.call === 'todas' ? 'TÓDAS' : event.call.toUpperCase(),
+          headline: CALL_HEADLINES[event.call],
           detail: `${describeTileShort(event.tile)} ${from}`.trim(),
         };
       }
       if (event.type === 'KANG_DECLARED') {
-        const label = event.variant === 'secret' ? 'SECRET' : event.variant === 'sagasa' ? 'SAGÁSA' : 'KANG';
+        const label = event.variant === 'secret' ? 'SECRET' : event.variant === 'sagasa' ? 'SAGASA' : 'KONG';
         return { seat: event.seat, headline: label, detail: faceLabel(event.face) };
       }
     }

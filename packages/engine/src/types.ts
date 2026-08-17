@@ -138,6 +138,11 @@ export type JaiAlaiRules = {
     ambitionBonus: number;
   };
   /**
+   * The ceiling for one hand. The house book is explicit: two chips is the most
+   * a hand can pay, "even if two majors".
+   */
+  maxPerHand: number;
+  /**
    * The "majors" — the ambitions this table counts for the bonus marker.
    * A plain win earns `win` markers; a win carrying any of these earns
    * `win + ambitionBonus` (so with the defaults, a major pays 2).

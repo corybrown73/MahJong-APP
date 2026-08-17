@@ -15,7 +15,7 @@ export type AmbitionDef = {
 export const AMBITIONS: AmbitionDef[] = [
   {
     id: 'todas',
-    label: 'Base win',
+    label: 'Mahjongg',
     filipino: 'Tódas',
     description: 'Five báhay and an eye.',
     kind: 'base',
@@ -24,7 +24,7 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'bunot',
-    label: 'Self-drawn',
+    label: 'Bunot',
     filipino: 'Búnot',
     description: 'You drew the winning tile yourself. Doubles the whole payout.',
     kind: 'multiplier',
@@ -33,8 +33,8 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'escalera',
-    label: 'Escaléra',
-    filipino: 'Escaléra',
+    label: 'Escalera',
+    filipino: 'Escalera',
     description: '1 through 9 of one suit — three chows spanning the full run.',
     kind: 'hand',
     defaultValue: 0.5,
@@ -42,7 +42,7 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'sietePares',
-    label: 'Siete Pares',
+    label: '7 Pairs',
     filipino: 'Siete Pares',
     description: 'Seven pairs plus one báhay.',
     kind: 'hand',
@@ -51,7 +51,7 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'fullFlush',
-    label: 'Full flush',
+    label: 'Same suit',
     description: 'Every tile in one suit.',
     kind: 'hand',
     defaultValue: 0.5,
@@ -59,7 +59,7 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'allPungs',
-    label: 'All pungs',
+    label: 'All pong',
     description: 'No chows anywhere in the hand.',
     kind: 'hand',
     defaultValue: 0.25,
@@ -67,31 +67,32 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'allChows',
-    label: 'All chows',
-    description: 'No pungs and no kangs.',
+    label: 'All chow',
+    description: 'No pongs and no kongs. A bonus, not a major.',
     kind: 'hand',
     defaultValue: 0.25,
     conflicts: ['allPungs'],
   },
   {
     id: 'concealedHand',
-    label: 'Concealed hand',
-    description: 'Nothing exposed when you won. A secret kang still counts as concealed.',
+    label: 'All up',
+    description:
+      'Nothing exposed when you won — every tile still up in your rack. A secret still counts as concealed.',
     kind: 'hand',
     defaultValue: 0.25,
     conflicts: ['allRevealed'],
   },
   {
     id: 'allRevealed',
-    label: 'All revealed',
-    description: 'Every set exposed on the table.',
+    label: 'All down',
+    description: 'Every set claimed and laid down on the table.',
     kind: 'hand',
     defaultValue: 0.25,
     conflicts: ['concealedHand'],
   },
   {
     id: 'quickWin',
-    label: 'Quick win',
+    label: 'Before the 5th',
     description: 'Won inside the first few discards of the hand.',
     kind: 'hand',
     defaultValue: 0.25,
@@ -99,7 +100,7 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'paningit',
-    label: 'Paníngit',
+    label: 'Panning',
     filipino: 'Paníngit',
     description: 'Won on the middle tile of a chow — holding 4 and 6, winning on 5.',
     kind: 'hand',
@@ -124,7 +125,7 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'bisaklat',
-    label: 'Bisaklát',
+    label: 'Bisaklat',
     filipino: 'Bisaklát',
     description: "The máno's dealt hand is already a winning hand. Ends the hand instantly.",
     kind: 'hand',
@@ -133,8 +134,8 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'openKang',
-    label: 'Open kang',
-    description: 'Kang claimed from a discard. Paid immediately by everyone.',
+    label: 'Kong',
+    description: 'Kong claimed from a discard. Paid immediately by everyone.',
     kind: 'immediate',
     defaultValue: 0.25,
     conflicts: [],
@@ -150,16 +151,16 @@ export const AMBITIONS: AmbitionDef[] = [
   },
   {
     id: 'sagasa',
-    label: 'Sagása',
+    label: 'Sagasa',
     filipino: 'Sagása',
-    description: 'You drew the fourth tile matching your own exposed pung.',
+    description: 'You drew the fourth tile matching your own exposed pong.',
     kind: 'immediate',
     defaultValue: 0.5,
     conflicts: [],
   },
   {
     id: 'noFlowers',
-    label: 'No flowers',
+    label: 'Sin Flores',
     description: 'Dealt zero flowers. Pays again if you win having still drawn none.',
     kind: 'immediate',
     defaultValue: 0.25,
@@ -187,9 +188,13 @@ export function defaultAmbitionValues(): Record<AmbitionId, number> {
 }
 
 /**
- * Talbog 1, búnot 2, bisaklát 2, and a major ambition +1 — so each of the
- * classic "majors" (siete pares, total pong, escaléra) lands on 2 markers,
- * matching búnot. The majors list is the table's to edit.
+ * The chip schedule from the house book: a win is one chip, a win with a major
+ * is two, a win with bunot or Rob the Kong is two — and two is the ceiling for
+ * a hand, "even if two majors".
+ *
+ * The majors are the six the book marks with M/: All pong, Escalera, Sin
+ * Flores, 7 Pairs, All down and Same suit. All chow is a +5 bonus in that book
+ * and deliberately not among them.
  */
 export function defaultJaiAlai(): JaiAlaiRules {
   return {
@@ -197,7 +202,8 @@ export function defaultJaiAlai(): JaiAlaiRules {
     ante: 0.25,
     markersToWin: 5,
     markerAwards: { win: 1, bunot: 2, bisaklat: 2, ambitionBonus: 1 },
-    majors: ['sietePares', 'allPungs', 'escalera'],
+    maxPerHand: 2,
+    majors: ['allPungs', 'escalera', 'noFlowers', 'sietePares', 'allRevealed', 'fullFlush'],
   };
 }
 
@@ -278,6 +284,7 @@ export function normalizeRuleset(stored: Partial<Ruleset> | null | undefined): R
       ...base.jaiAlai,
       ...(stored.jaiAlai ?? {}),
       markerAwards: { ...base.jaiAlai.markerAwards, ...(stored.jaiAlai?.markerAwards ?? {}) },
+      maxPerHand: stored.jaiAlai?.maxPerHand ?? base.jaiAlai.maxPerHand,
       majors: stored.jaiAlai?.majors ?? base.jaiAlai.majors,
     },
     ambitionValues: { ...base.ambitionValues, ...(stored.ambitionValues ?? {}) },

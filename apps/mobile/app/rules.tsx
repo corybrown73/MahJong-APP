@@ -50,8 +50,8 @@ const FLAGS: {
   },
   {
     key: 'robbingTheKang',
-    label: 'Robbing the kang',
-    description: 'A sagása tile that completes another hand may be taken for tódas.',
+    label: 'Rob the Kong',
+    description: 'A sagasa tile that completes another hand may be taken for the win (RTK).',
   },
   {
     key: 'chowFromAnyPlayer',
@@ -61,11 +61,11 @@ const FLAGS: {
   {
     key: 'multipleWinnersOnDiscard',
     label: 'Pay every winner',
-    description: 'When two players call tódas on the same tile, pay both instead of the nearer one.',
+    description: 'When two players call mahjongg on the same tile, pay both instead of the nearer one.',
   },
   {
     key: 'sieteParesRequiresConcealed',
-    label: 'Siete pares must be concealed',
+    label: '7 Pairs must be concealed',
     description: 'Some tables only pay seven pairs if nothing was exposed.',
   },
   {
@@ -75,19 +75,25 @@ const FLAGS: {
   },
   {
     key: 'bisaklatStacksAmbitions',
-    label: 'Bisaklát Escaléra / Siete Pares',
+    label: 'Bisaklat Escalera / 7 Pairs',
     description: 'A dealt winning hand that also carries a shape ambition pays it on top.',
   },
 ];
 
-/** The ambitions a table might count as a "major" for the bonus marker. */
+/**
+ * The six the house book marks with M/, plus the two it scores as ordinary
+ * bonuses — All chow and All up are listed so a table can add them, but they
+ * start off, because in this book they are +5s and not majors.
+ */
 const MAJOR_CANDIDATES: { id: AmbitionId; label: string }[] = [
-  { id: 'sietePares', label: 'Siete pares' },
-  { id: 'allPungs', label: 'Total pong' },
-  { id: 'escalera', label: 'Escaléra' },
-  { id: 'fullFlush', label: 'Full flush' },
-  { id: 'allChows', label: 'All chows' },
-  { id: 'concealedHand', label: 'Concealed' },
+  { id: 'allPungs', label: 'All pong' },
+  { id: 'escalera', label: 'Escalera' },
+  { id: 'noFlowers', label: 'Sin Flores' },
+  { id: 'sietePares', label: '7 Pairs' },
+  { id: 'allRevealed', label: 'All down' },
+  { id: 'fullFlush', label: 'Same suit' },
+  { id: 'allChows', label: 'All chow' },
+  { id: 'concealedHand', label: 'All up' },
 ];
 
 export default function RulesScreen() {
@@ -180,11 +186,21 @@ export default function RulesScreen() {
               ]}
               onChange={(n) => updateJaiAlai({ markersToWin: n })}
             />
+            <Choice
+              label="Most chips one hand can pay"
+              value={ruleset.jaiAlai.maxPerHand}
+              options={[
+                { value: 2, label: '2 · the book' },
+                { value: 3, label: '3' },
+                { value: 0, label: 'no cap' },
+              ]}
+              onChange={(n) => updateJaiAlai({ maxPerHand: n })}
+            />
             <Body>The majors</Body>
             <Muted style={{ fontSize: fontSize.small }}>
-              A win carrying any of these earns the extra marker — so a major
-              pays {ruleset.jaiAlai.markerAwards.win + ruleset.jaiAlai.markerAwards.ambitionBonus},
-              the same as a búnot. Tap to include or drop one.
+              A win carrying any of these earns the extra chip — two for the
+              hand, the same as a bunot, and two is the ceiling even with a
+              second major. All chow is a bonus in this book, not a major.
             </Muted>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
               {MAJOR_CANDIDATES.map((candidate) => {
@@ -229,6 +245,7 @@ export default function RulesScreen() {
         <Term>Flower bonus threshold</Term>
         <Muted style={{ fontSize: fontSize.small }}>
           How many flowers pay the collector bonus. Visayan tables switch it off.
+          Sin Flores — being dealt none — is separate, below.
         </Muted>
         <Choice
           label=""
@@ -244,9 +261,9 @@ export default function RulesScreen() {
       </Card>
 
       <Card>
-        <Term>Búnot multiplier</Term>
+        <Term>Bunot multiplier</Term>
         <Muted style={{ fontSize: fontSize.small }}>
-          What a self-drawn win multiplies the whole payout by.
+          What a self-drawn win — or Rob the Kong — multiplies the whole payout by.
         </Muted>
         <Choice
           label=""
@@ -257,7 +274,7 @@ export default function RulesScreen() {
       </Card>
 
       <Card>
-        <Term>Quick win limit</Term>
+        <Term>Before the 5th</Term>
         <Muted style={{ fontSize: fontSize.small }}>
           Win inside this many discards and the hand pays extra.
         </Muted>

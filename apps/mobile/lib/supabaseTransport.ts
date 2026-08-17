@@ -15,9 +15,29 @@ import type { RoomTransport, TransportStatus } from './transport';
 
 export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+/**
+ * A room server reached directly, bypassing Supabase — `pnpm room:dev` on a
+ * laptop, or any host running the same handler. Handy for testing four seats
+ * on one network before anything is deployed.
+ */
+export const ROOM_URL = process.env.EXPO_PUBLIC_ROOM_URL ?? '';
+
+export function roomEndpoint(): string {
+  if (ROOM_URL) return ROOM_URL.replace(/\/$/, '');
+  return `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/bahay-room`;
+}
+
+function authHeaders(): Record<string, string> {
+  if (ROOM_URL) return { 'Content-Type': 'application/json' };
+  return {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  };
+}
 
 export function onlinePlayAvailable(): boolean {
-  return SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0;
+  return ROOM_URL.length > 0 || (SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0);
 }
 
 /** How often to ask the server for a fresh view while a hand is running. */
@@ -44,18 +64,10 @@ export class SupabaseTransport implements RoomTransport {
     void this.poll();
   }
 
-  private endpoint(): string {
-    return `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/bahay-room`;
-  }
-
   private async post(body: unknown): Promise<Envelope> {
-    const response = await fetch(this.endpoint(), {
+    const response = await fetch(roomEndpoint(), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
+      headers: authHeaders(),
       body: JSON.stringify(body),
     });
     if (!response.ok) {
@@ -146,18 +158,11 @@ export async function createOnlineRoom(options: {
   ruleset: unknown;
 }): Promise<{ code: string } | { error: string }> {
   try {
-    const response = await fetch(
-      `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/bahay-room`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ create: true, ...options }),
-      },
-    );
+    const response = await fetch(roomEndpoint(), {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ create: true, ...options }),
+    });
     if (!response.ok) return { error: `server said ${response.status}` };
     const payload = (await response.json()) as { ok: boolean; code?: string; error?: string };
     if (!payload.ok || !payload.code) return { error: payload.error ?? 'could not open the room' };

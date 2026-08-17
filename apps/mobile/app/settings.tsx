@@ -95,7 +95,7 @@ export default function SettingsScreen() {
           onChange={(value) => settings.set('language', value)}
         />
         <Muted style={{ fontSize: fontSize.small }}>
-          Filipino terms stay Filipino either way — tódas, búnot, báhay, sagása.
+          The table's own words stay put either way — mahjongg, bunot, báhay, sagasa.
         </Muted>
       </Card>
     </Screen>

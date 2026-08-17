@@ -332,6 +332,8 @@ function awardMarkers(state: GameState, settlement: import('./types.js').Settlem
     markers += awards.ambitionBonus;
     reason += ' ambición';
   }
+  // The book caps a hand at two chips, even when it carried two majors.
+  if (rules.maxPerHand > 0) markers = Math.min(markers, rules.maxPerHand);
   if (markers <= 0) return;
 
   state.markers[winner] += markers;

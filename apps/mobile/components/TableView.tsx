@@ -428,11 +428,11 @@ function summaryFor(view: PublicGameView, seat: SeatId, names: Record<SeatId, st
 function declarationLabel(action: Action): string {
   switch (action.type) {
     case 'DECLARE_TODAS':
-      return 'TÓDAS';
+      return 'MAHJONGG';
     case 'SECRET_KANG':
       return `SECRET · ${faceLabel({ suit: action.suit, rank: action.rank })}`;
     case 'SAGASA':
-      return `SAGÁSA · ${faceLabel({ suit: action.suit, rank: action.rank })}`;
+      return `SAGASA · ${faceLabel({ suit: action.suit, rank: action.rank })}`;
     default:
       return action.type;
   }

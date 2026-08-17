@@ -55,7 +55,7 @@ export function WinScreen({
   }, [lineDelay, reducedMotion, settlement]);
 
   const drawn = settlement.winner === null;
-  const title = drawn ? 'WALANG MANALO' : settlement.winType === 'bisaklat' ? 'BISAKLÁT' : 'TÓDAS';
+  const title = drawn ? 'WALANG MANALO' : settlement.winType === 'bisaklat' ? 'BISAKLAT' : 'MAHJONGG';
   const subtitle = drawn
     ? 'The wall ran out — nobody pays'
     : `${names[settlement.winner as SeatId]} wins the hand`;

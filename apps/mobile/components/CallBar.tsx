@@ -21,11 +21,15 @@ export type CallOption = {
 };
 
 const ORDER: CallType[] = ['chow', 'pung', 'kang', 'todas'];
+/**
+ * The house book's words: pong, kong, and "declare mahjongg". The engine's
+ * internal names stay chow/pung/kang/todas; only the table speaks.
+ */
 const LABELS: Record<CallType, string> = {
   chow: 'CHOW',
-  pung: 'PUNG',
-  kang: 'KANG',
-  todas: 'TÓDAS',
+  pung: 'PONG',
+  kang: 'KONG',
+  todas: 'MAHJONGG',
 };
 
 type Props = {

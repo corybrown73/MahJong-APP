@@ -25,6 +25,14 @@ import { useSettings } from './settings';
 import { useStats } from './stats';
 import type { Banner } from './game';
 
+/** The house book's words for a call, used on the announcement banner. */
+const CALL_HEADLINES: Record<CallType, string> = {
+  chow: 'CHOW',
+  pung: 'PONG',
+  kang: 'KONG',
+  todas: 'MAHJONGG',
+};
+
 type RoomStore = {
   view: RoomView | null;
   status: TransportStatus;
@@ -92,7 +100,7 @@ export const useRoom = create<RoomStore>((set, get) => {
         lastEventAt = event.at;
         return {
           seat: event.seat,
-          headline: action.call === 'todas' ? 'TÓDAS' : action.call.toUpperCase(),
+          headline: CALL_HEADLINES[action.call],
           detail: view.seats[event.seat]?.name ?? '',
         };
       }
@@ -100,7 +108,7 @@ export const useRoom = create<RoomStore>((set, get) => {
         lastEventAt = event.at;
         return {
           seat: event.seat,
-          headline: action.type === 'SAGASA' ? 'SAGÁSA' : 'SECRET',
+          headline: action.type === 'SAGASA' ? 'SAGASA' : 'SECRET',
           detail: view.seats[event.seat]?.name ?? '',
         };
       }

@@ -57,7 +57,7 @@ export default function OnlineTableScreen() {
     for (const option of chowOptions(hand, discard)) record(option);
     record(pungOption(hand, discard));
     record(kangOption(hand, discard));
-    out['todas:'] = 'Tódas — this tile completes your hand';
+    out['todas:'] = 'Mahjongg — this tile completes your hand';
     return out;
   }, [view?.game]);
 

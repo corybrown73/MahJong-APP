@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGame, nextHand, reduce, legalActions } from '../src/game.js';
 import {
+  AMBITIONS,
   cloneRuleset,
   defaultJaiAlai,
   normalizeRuleset,
@@ -78,12 +79,12 @@ describe('the jai alái pot', () => {
     expect(after.phase.name).toBe('HAND_OVER');
     if (after.phase.name !== 'HAND_OVER') return;
     const settlement = after.phase.settlement;
-    // Búnot (2) + ambición bonus (1): this hand carries escaléra and more.
+    // Bunot (2) plus a major (+1), capped at the book's two per hand.
     expect(settlement.markerAward).toBeDefined();
     expect(settlement.markerAward!.seat).toBe(0);
-    expect(settlement.markerAward!.markers).toBe(3);
+    expect(settlement.markerAward!.markers).toBe(2);
     expect(settlement.markerAward!.reason).toContain('ambición');
-    expect(after.markers[0]).toBe(3);
+    expect(after.markers[0]).toBe(2);
     expect(settlement.potWin).toBeUndefined();
   });
 
@@ -250,25 +251,21 @@ describe('the majors', () => {
     return after.phase.settlement;
   }
 
-  it('defaults to siete pares, total pong and escaléra', () => {
-    expect(defaultJaiAlai().majors.sort()).toEqual(['allPungs', 'escalera', 'sietePares']);
-  });
-
-  it('pays a búnot with a major three markers (búnot ambición)', () => {
-    // Escaléra in balls — a major at the default table.
+  it('pays a bunot carrying a major the full two chips', () => {
+    // Escalera in bolá — a major in the book.
     const settlement = declareAndSettle(jaiAlaiState('b123 b456 b789 k123 k456 c99'));
-    expect(settlement.markerAward!.markers).toBe(3);
+    expect(settlement.markerAward!.markers).toBe(2);
     expect(settlement.markerAward!.reason).toBe('Búnot ambición');
   });
 
-  it('pays total pong the bonus too', () => {
+  it('recognises All pong as a major', () => {
     const settlement = declareAndSettle(jaiAlaiState('b111 b222 k333 k444 c555 c66'));
     expect(settlement.items.map((i) => i.ambition)).toContain('allPungs');
-    expect(settlement.markerAward!.markers).toBe(3);
+    expect(settlement.markerAward!.reason).toContain('ambición');
   });
 
   it('does not pay the bonus for a non-major ambition', () => {
-    // Concealed hand and single wait are ambitions, but not majors.
+    // All up and Single wait are +5 bonuses in the book, never majors.
     const state = jaiAlaiState('b123 b456 k555 c123 c456 c99');
     state.ruleset.jaiAlai.majors = ['sietePares', 'allPungs', 'escalera'];
     const settlement = declareAndSettle(state);
@@ -278,10 +275,101 @@ describe('the majors', () => {
   });
 
   it('respects an edited majors list', () => {
+    // A table that counts All up as a major — the book does not, but the
+    // config is the table's to set.
     const state = jaiAlaiState('b123 b456 k555 c123 c456 c99');
     state.ruleset.jaiAlai.majors = ['concealedHand'];
     const settlement = declareAndSettle(state);
     expect(settlement.items.map((i) => i.ambition)).toContain('concealedHand');
-    expect(settlement.markerAward!.markers).toBe(3);
+    expect(settlement.markerAward!.reason).toContain('ambición');
+  });
+});
+
+/**
+ * The house book — "Mahjong counts", the sheet the family actually plays from.
+ * These lock in its naming and its chip schedule.
+ */
+describe('the house book', () => {
+  it('names the ambitions the way the book does', () => {
+    const named = Object.fromEntries(AMBITIONS.map((a) => [a.id, a.label]));
+    expect(named).toMatchObject({
+      todas: 'Mahjongg',
+      bunot: 'Bunot',
+      escalera: 'Escalera',
+      sietePares: '7 Pairs',
+      fullFlush: 'Same suit',
+      allPungs: 'All pong',
+      allChows: 'All chow',
+      concealedHand: 'All up',
+      allRevealed: 'All down',
+      quickWin: 'Before the 5th',
+      paningit: 'Panning',
+      bisaklat: 'Bisaklat',
+      openKang: 'Kong',
+      secretKang: 'Secret',
+      sagasa: 'Sagasa',
+      noFlowers: 'Sin Flores',
+    });
+  });
+
+  it('counts the six M/ ambitions as majors', () => {
+    expect([...defaultJaiAlai().majors].sort()).toEqual([
+      'allPungs',
+      'allRevealed',
+      'escalera',
+      'fullFlush',
+      'noFlowers',
+      'sietePares',
+    ]);
+  });
+
+  it('does not count All chow as a major', () => {
+    expect(defaultJaiAlai().majors).not.toContain('allChows');
+  });
+
+  it('caps a hand at two chips, even with a major and a bunot', () => {
+    // Escalera (a major) won by self-draw: 2 for the bunot, +1 for the major,
+    // capped back to the book's ceiling of 2.
+    const state = table({ hands: ['b123 b456 b789 k123 k456 c99'] });
+    state.ruleset = jaiAlaiRuleset();
+    state.pot = 1;
+    for (const player of state.players) player.everDrewFlower = true;
+    const action = legalActions(state, 0).find((a) => a.type === 'DECLARE_TODAS')!;
+    const after = reduce(state, action);
+    if (after.phase.name !== 'HAND_OVER') throw new Error('hand not over');
+    const award = after.phase.settlement.markerAward!;
+    expect(award.markers).toBe(2);
+    expect(after.markers[0]).toBe(2);
+  });
+
+  it('still pays a plain win one chip', () => {
+    const state = table({ hands: ['b123 b456 k555 c123 c456 c99'] });
+    state.ruleset = jaiAlaiRuleset();
+    state.ruleset.jaiAlai.markerAwards.bunot = 1; // a discard win, scored here as a draw-in
+    state.pot = 1;
+    for (const player of state.players) player.everDrewFlower = true;
+    for (let i = 0; i < 8; i++) state.discards.push({ tile: tile('k1'), from: 1, claimed: false });
+    const action = legalActions(state, 0).find((a) => a.type === 'DECLARE_TODAS')!;
+    const after = reduce(state, action);
+    if (after.phase.name !== 'HAND_OVER') throw new Error('hand not over');
+    expect(after.phase.settlement.markerAward!.markers).toBe(1);
+  });
+
+  it('lets a table lift the cap if it wants to', () => {
+    const state = table({ hands: ['b123 b456 b789 k123 k456 c99'] });
+    state.ruleset = jaiAlaiRuleset();
+    state.ruleset.jaiAlai.maxPerHand = 0;
+    state.pot = 1;
+    for (const player of state.players) player.everDrewFlower = true;
+    const action = legalActions(state, 0).find((a) => a.type === 'DECLARE_TODAS')!;
+    const after = reduce(state, action);
+    if (after.phase.name !== 'HAND_OVER') throw new Error('hand not over');
+    expect(after.phase.settlement.markerAward!.markers).toBe(3);
+  });
+
+  it('carries the cap through a stored config from an older build', () => {
+    const normalized = normalizeRuleset({ jaiAlai: { enabled: true } as never });
+    expect(normalized.jaiAlai.maxPerHand).toBe(2);
+    expect(normalized.jaiAlai.majors).toContain('fullFlush');
   });
 });

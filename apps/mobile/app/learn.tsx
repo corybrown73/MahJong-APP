@@ -92,7 +92,7 @@ export default function LearnScreen() {
       {
         term: 'Four',
         title: 'Calling a discard',
-        body: 'When someone throws a tile you can use, you may call it. Pung takes it for three of a kind, kang for four, chow for a run — but a chow only from the player before you. Tódas beats them all: it means the tile finishes your hand.',
+        body: 'When someone throws a tile you can use, you may call it. Pong takes it for three of a kind, kong for four, chow for a run — but a chow only from the player before you. Mahjongg beats them all: it means the tile finishes your hand.',
         render: () => (
           <Row>
             <Tile tile={t('balls', 5)} width={44} palette={palette} legal />
@@ -105,7 +105,7 @@ export default function LearnScreen() {
       {
         term: 'Five',
         title: 'Ambitions pay on top',
-        body: 'Escaléra is 1–9 of one suit. Siete pares is seven pairs and a set. Búnot doubles everything when you draw the winning tile yourself. Every kang pays the moment you declare it, win or lose. The win screen itemizes all of it, line by line.',
+        body: 'Escalera is 1–9 of one suit. 7 Pairs is seven pairs and a set. Bunot doubles everything when you draw the winning tile yourself. Every kong pays the moment you declare it, win or lose. The win screen itemizes all of it, line by line.',
       },
       {
         term: 'Six',
