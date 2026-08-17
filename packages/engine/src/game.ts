@@ -32,7 +32,7 @@ import {
 } from './hand.js';
 import { cloneRuleset, STANDARD } from './rulesets.js';
 import { buildImmediatePayout, drawSettlement, round2, settle } from './scoring.js';
-import { isFlower, isSuited } from './tiles.js';
+import { isFlower, isSuited, sortTiles } from './tiles.js';
 import type {
   Action,
   AmbitionId,
@@ -799,6 +799,26 @@ export function nextHand(state: GameState): GameState {
     handNumber: state.handNumber + 1,
     chips: state.players.map((p) => p.chips) as [number, number, number, number],
   });
+}
+
+/**
+ * The rack belongs to the player. These two are the only ways its order ever
+ * changes, both of them explicit: a drag, or a tap on Sort. Nothing sorts by
+ * itself.
+ */
+export function reorderRack(state: GameState, seat: SeatId, from: number, to: number): GameState {
+  const next = cloneState(state);
+  const rack = next.players[seat].concealed;
+  if (from < 0 || from >= rack.length || to < 0 || to >= rack.length) return state;
+  const [moved] = rack.splice(from, 1);
+  rack.splice(to, 0, moved);
+  return next;
+}
+
+export function sortRack(state: GameState, seat: SeatId): GameState {
+  const next = cloneState(state);
+  next.players[seat].concealed = sortTiles(next.players[seat].concealed);
+  return next;
 }
 
 export function isSessionOver(state: GameState): boolean {

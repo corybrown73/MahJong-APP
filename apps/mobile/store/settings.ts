@@ -1,0 +1,73 @@
+import { create } from 'zustand';
+import { cloneRuleset, STANDARD, type Ruleset } from '@bahay/engine';
+import { KEYS, loadJson, saveJson } from '../lib/storage';
+import type { GameSpeed } from '../theme/tokens';
+
+export type Language = 'en' | 'tl';
+
+export type Settings = {
+  /** Relaxed by default: slow enough to learn from. */
+  speed: GameSpeed;
+  /** Off by default. Announcements are visual first. */
+  sound: boolean;
+  haptics: boolean;
+  reducedMotion: boolean;
+  highContrast: boolean;
+  /** Multiplier on rack tile size, for eyes and thumbs of every age. */
+  tileScale: number;
+  language: Language;
+  /** Highlights what you are waiting on and flags dangerous discards. */
+  coachMode: boolean;
+  /** Two-step discard is always on; this controls the undo grace period. */
+  undoWindow: boolean;
+};
+
+const DEFAULTS: Settings = {
+  speed: 'relaxed',
+  sound: false,
+  haptics: true,
+  reducedMotion: false,
+  highContrast: false,
+  tileScale: 1,
+  language: 'en',
+  coachMode: false,
+  undoWindow: true,
+};
+
+type SettingsStore = Settings & {
+  ruleset: Ruleset;
+  hydrated: boolean;
+  hydrate: () => Promise<void>;
+  set: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+  setRuleset: (ruleset: Ruleset) => void;
+};
+
+export const useSettings = create<SettingsStore>((set, get) => ({
+  ...DEFAULTS,
+  ruleset: cloneRuleset(STANDARD),
+  hydrated: false,
+
+  hydrate: async () => {
+    const [settings, ruleset] = await Promise.all([
+      loadJson<Settings>(KEYS.settings, DEFAULTS),
+      loadJson<Ruleset>(KEYS.ruleset, cloneRuleset(STANDARD)),
+    ]);
+    set({ ...settings, ruleset, hydrated: true });
+  },
+
+  set: (key, value) => {
+    set({ [key]: value } as Partial<SettingsStore>);
+    const { ruleset, hydrated, hydrate, set: _set, setRuleset, ...rest } = get();
+    void saveJson(KEYS.settings, { ...rest, [key]: value });
+  },
+
+  setRuleset: (ruleset) => {
+    set({ ruleset });
+    void saveJson(KEYS.ruleset, ruleset);
+  },
+}));
+
+export function settingsSnapshot(store: SettingsStore): Settings {
+  const { ruleset, hydrated, hydrate, set, setRuleset, ...rest } = store;
+  return rest;
+}

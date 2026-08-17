@@ -1,0 +1,171 @@
+/**
+ * House Rules.
+ *
+ * Every family plays differently, so the ruleset is a config object rather than
+ * a hardcoded assumption — presets plus a custom set, in plain language.
+ */
+
+import React from 'react';
+import { View } from 'react-native';
+import { router } from 'expo-router';
+import {
+  AMBITIONS,
+  ambitionValue,
+  cloneRuleset,
+  PRESETS,
+  type AmbitionId,
+  type Ruleset,
+} from '@bahay/engine';
+import { Body, Button, Card, Choice, Divider, Muted, Screen, Term, Title, Toggle } from '../components/ui';
+import { fontSize, space } from '../theme/tokens';
+import { useSettings } from '../store/settings';
+
+const FLAGS: {
+  key: keyof Ruleset;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: 'jokerEnabled',
+    label: 'Joker',
+    description: 'One suited face is turned up at the deal; all four copies are wild.',
+  },
+  {
+    key: 'doublesOnDoubleRoll',
+    label: 'Doubles on a double roll',
+    description: 'If the wall-breaking roll is doubles, every payout this hand is doubled.',
+  },
+  {
+    key: 'robbingTheKang',
+    label: 'Robbing the kang',
+    description: 'A sagása tile that completes another hand may be taken for tódas.',
+  },
+  {
+    key: 'chowFromAnyPlayer',
+    label: 'Chow from anyone',
+    description: 'Standard play allows a chow only from the player before you.',
+  },
+  {
+    key: 'multipleWinnersOnDiscard',
+    label: 'Pay every winner',
+    description: 'When two players call tódas on the same tile, pay both instead of the nearer one.',
+  },
+  {
+    key: 'sieteParesRequiresConcealed',
+    label: 'Siete pares must be concealed',
+    description: 'Some tables only pay seven pairs if nothing was exposed.',
+  },
+  {
+    key: 'drawEndsDealership',
+    label: 'A draw ends the dealership',
+    description: 'By default the máno keeps the deal when the wall runs out.',
+  },
+];
+
+export default function RulesScreen() {
+  const { ruleset, setRuleset } = useSettings();
+
+  const update = (patch: Partial<Ruleset>) =>
+    setRuleset({ ...cloneRuleset(ruleset), ...patch, id: 'house', label: 'Our House' });
+
+  const setAmbition = (id: AmbitionId, value: number) =>
+    setRuleset({
+      ...cloneRuleset(ruleset),
+      id: 'house',
+      label: 'Our House',
+      ambitionValues: { ...ruleset.ambitionValues, [id]: value },
+    });
+
+  return (
+    <Screen>
+      <Button label="◀ Back" tone="ghost" onPress={() => router.back()} />
+      <Title>House Rules</Title>
+      <Muted>
+        Every family plays differently. Dial in exactly how your table plays — it
+        changes the engine, not just the wording.
+      </Muted>
+
+      <Choice
+        label="Preset"
+        value={ruleset.id}
+        options={PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
+        onChange={(id) => {
+          const preset = PRESETS.find((p) => p.id === id);
+          if (preset) setRuleset(cloneRuleset(preset));
+        }}
+      />
+
+      <Divider />
+
+      <Card>
+        {FLAGS.map((flag) => (
+          <Toggle
+            key={String(flag.key)}
+            label={flag.label}
+            description={flag.description}
+            value={Boolean(ruleset[flag.key])}
+            onChange={(next) => update({ [flag.key]: next } as Partial<Ruleset>)}
+          />
+        ))}
+      </Card>
+
+      <Card>
+        <Term>Quick win limit</Term>
+        <Muted style={{ fontSize: fontSize.small }}>
+          Win inside this many discards and the hand pays extra.
+        </Muted>
+        <Choice
+          label=""
+          value={ruleset.quickWinDiscardLimit}
+          options={[3, 5, 8].map((n) => ({ value: n, label: `${n} discards` }))}
+          onChange={(n) => update({ quickWinDiscardLimit: n })}
+        />
+      </Card>
+
+      <Card>
+        <Term>Rounds per game</Term>
+        <Choice
+          label=""
+          value={ruleset.roundsPerGame}
+          options={[1, 2, 4].map((n) => ({ value: n, label: `${n}` }))}
+          onChange={(n) => update({ roundsPerGame: n })}
+        />
+      </Card>
+
+      <Term>Ambition values</Term>
+      <Muted style={{ fontSize: fontSize.small }}>
+        Set anything to zero to stop paying it at your table.
+      </Muted>
+
+      {AMBITIONS.filter((a) => a.kind !== 'multiplier').map((ambition) => (
+        <Card key={ambition.id}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.md }}>
+            <Body style={{ flex: 1 }}>{ambition.label}</Body>
+            <Body>{ambitionValue(ruleset, ambition.id).toFixed(2)}</Body>
+          </View>
+          <Muted style={{ fontSize: fontSize.small }}>{ambition.description}</Muted>
+          {ambition.conflicts.length > 0 ? (
+            <Muted style={{ fontSize: fontSize.small }}>
+              Never scored with: {ambition.conflicts.join(', ')}
+            </Muted>
+          ) : null}
+          <Choice
+            label=""
+            value={ambitionValue(ruleset, ambition.id)}
+            options={valueChoices(ambition.defaultValue)}
+            onChange={(value) => setAmbition(ambition.id, value)}
+          />
+        </Card>
+      ))}
+    </Screen>
+  );
+}
+
+function valueChoices(base: number): { value: number; label: string }[] {
+  const values =
+    base >= 10 ? [0, 10, 20, 40] : [0, 0.25, 0.5, 1].concat(base > 1 ? [base] : []);
+  return Array.from(new Set(values)).map((value) => ({
+    value,
+    label: value === 0 ? 'off' : value.toFixed(2),
+  }));
+}
