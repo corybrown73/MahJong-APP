@@ -8,9 +8,12 @@
  */
 
 import {
+  AMBITION_BY_ID,
+  ambitionValue,
   isSuited,
   unseenCount,
   type Action,
+  type AmbitionId,
   type Face,
   type PublicGameView,
   type Rng,
@@ -67,6 +70,17 @@ function danger(view: PublicGameView, tile: Tile): number {
   return score;
 }
 
+/**
+ * How much the table pays an ambition relative to the standard book, so the AI
+ * chases what *this* house pays big and ignores what it has switched off. A
+ * table that pays escaléra 4× the default gets opponents who visibly hunt runs.
+ */
+function tableWeight(view: PublicGameView, id: AmbitionId): number {
+  const standard = AMBITION_BY_ID[id].defaultValue;
+  if (standard === 0) return 1;
+  return Math.min(3, ambitionValue(view.ruleset, id) / standard);
+}
+
 /** Is an ambition within reach? Rewards committing to a flush or a run. */
 function ambitionPotential(view: PublicGameView, hand: Tile[], personality: Personality): number {
   const suited = hand.filter(isSuited);
@@ -77,13 +91,15 @@ function ambitionPotential(view: PublicGameView, hand: Tile[], personality: Pers
   const flushProgress = dominant / suited.length;
 
   let score = 0;
-  if (flushProgress > 0.75) score += personality.bias === 'flush' ? 2 : 1;
+  if (flushProgress > 0.75) {
+    score += (personality.bias === 'flush' ? 2 : 1) * tableWeight(view, 'fullFlush');
+  }
 
   // Escaléra: how much of a 1-9 run is already held in the dominant suit?
   for (const [suit, count] of bySuit) {
     if (count < 7) continue;
     const ranks = new Set(suited.filter((t) => t.suit === suit).map((t) => t.rank));
-    if (ranks.size >= 8) score += 1.5;
+    if (ranks.size >= 8) score += 1.5 * tableWeight(view, 'escalera');
   }
 
   // Siete pares: lots of pairs.
@@ -93,7 +109,7 @@ function ambitionPotential(view: PublicGameView, hand: Tile[], personality: Pers
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const pairs = [...counts.values()].filter((n) => n >= 2).length;
-  if (pairs >= 5) score += 1.5;
+  if (pairs >= 5) score += 1.5 * tableWeight(view, 'sietePares');
 
   return score;
 }
@@ -247,7 +263,7 @@ function chooseClaim(
     ];
     const after = shanten({ concealed: rest, melds: pseudoMelds, joker: view.joker });
     let gain = before - after;
-    if (claim.call === 'kang') gain += 1; // pays immediately
+    if (claim.call === 'kang') gain += 1 * tableWeight(view, 'openKang'); // pays immediately
     if (claim.call === 'chow' && personality.bias === 'safe') gain -= 0.5;
     if (personality.bias === 'aggressive') gain += 0.5;
     if (!best || gain > best.gain) {

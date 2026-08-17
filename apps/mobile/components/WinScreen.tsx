@@ -116,6 +116,29 @@ export function WinScreen({ settlement, names, winnerHand, onNextHand, onLeave }
             </Animated.View>
           ) : null}
 
+          {settlement.markerAward ? (
+            <View style={{ marginTop: space.md, gap: 4 }}>
+              <View style={styles.payRow}>
+                <Text style={styles.payLabel}>
+                  {settlement.markerAward.reason} — {names[settlement.markerAward.seat]}
+                </Text>
+                <Text style={[styles.payValue, { color: colors.vermilion }]}>
+                  ◆ +{settlement.markerAward.markers}
+                </Text>
+              </View>
+              {settlement.potWin ? (
+                <View style={styles.payRow}>
+                  <Text style={[styles.payLabel, { color: colors.vermilion }]}>
+                    {names[settlement.potWin.seat]} sweeps the jai alái pot
+                  </Text>
+                  <Text style={[styles.payValue, { color: colors.vermilion }]}>
+                    +{settlement.potWin.amount.toFixed(2)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           {settlement.immediate.length > 0 ? (
             <View style={{ marginTop: space.lg, gap: 4 }}>
               <Text style={styles.sectionLabel}>PAID DURING THE HAND</Text>

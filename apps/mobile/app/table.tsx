@@ -147,8 +147,10 @@ export default function TableScreen() {
         <Text style={[styles.headerText, { color: palette.capiz }]}>
           Round {state.round} · hand {state.handNumber}
           {state.doublesActive ? ' · doubles' : ''}
+          {state.ruleset.jaiAlai.enabled ? ` · pot ${state.pot.toFixed(2)}` : ''}
         </Text>
         <Text style={[styles.chips, { color: palette.gold }]}>
+          {state.ruleset.jaiAlai.enabled ? `◆${state.markers[HUMAN]} · ` : ''}
           {me.chips >= 0 ? '' : '−'}
           {Math.abs(me.chips).toFixed(2)}
         </Text>

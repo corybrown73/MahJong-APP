@@ -1,4 +1,4 @@
-import type { AmbitionId, Ruleset } from './types.js';
+import type { AmbitionId, JaiAlaiRules, Ruleset } from './types.js';
 
 export type AmbitionDef = {
   id: AmbitionId;
@@ -186,6 +186,16 @@ export function defaultAmbitionValues(): Record<AmbitionId, number> {
   >;
 }
 
+/** Talbog 1, búnot 2, bisaklát 2, ambitions +1 — the common marker schedule. */
+export function defaultJaiAlai(): JaiAlaiRules {
+  return {
+    enabled: false,
+    ante: 0.25,
+    markersToWin: 5,
+    markerAwards: { win: 1, bunot: 2, bisaklat: 2, ambitionBonus: 1 },
+  };
+}
+
 export const STANDARD: Ruleset = {
   id: 'standard',
   label: 'Standard',
@@ -199,10 +209,16 @@ export const STANDARD: Ruleset = {
   bisaklatValue: 20,
   drawEndsDealership: false,
   roundsPerGame: 4,
+  thirteenFlowersThreshold: 13,
+  bisaklatStacksAmbitions: false,
+  jaiAlai: defaultJaiAlai(),
   ambitionValues: defaultAmbitionValues(),
 };
 
-/** A common Visayan variation: no joker, chow from anyone, siete pares concealed. */
+/**
+ * A common Visayan variation: no joker, chow from anyone, siete pares
+ * concealed, and no thirteen-flowers payout (their sets carry fewer flowers).
+ */
 export const VISAYAN: Ruleset = {
   ...STANDARD,
   id: 'visayan',
@@ -210,7 +226,9 @@ export const VISAYAN: Ruleset = {
   jokerEnabled: false,
   chowFromAnyPlayer: true,
   sieteParesRequiresConcealed: true,
-  ambitionValues: defaultAmbitionValues(),
+  thirteenFlowersThreshold: 0,
+  jaiAlai: defaultJaiAlai(),
+  ambitionValues: { ...defaultAmbitionValues(), thirteenFlowers: 0 },
 };
 
 /** The editable preset — "how our house plays". */
@@ -218,6 +236,7 @@ export const HOUSE: Ruleset = {
   ...STANDARD,
   id: 'house',
   label: 'Our House',
+  jaiAlai: defaultJaiAlai(),
   ambitionValues: defaultAmbitionValues(),
 };
 
@@ -229,5 +248,28 @@ export function ambitionValue(ruleset: Ruleset, id: import('./types.js').Ambitio
 }
 
 export function cloneRuleset(ruleset: Ruleset): Ruleset {
-  return { ...ruleset, ambitionValues: { ...ruleset.ambitionValues } };
+  return {
+    ...ruleset,
+    jaiAlai: { ...ruleset.jaiAlai, markerAwards: { ...ruleset.jaiAlai.markerAwards } },
+    ambitionValues: { ...ruleset.ambitionValues },
+  };
+}
+
+/**
+ * Fill anything missing from an older stored ruleset with the standard
+ * defaults, so a saved config survives the app gaining new options.
+ */
+export function normalizeRuleset(stored: Partial<Ruleset> | null | undefined): Ruleset {
+  const base = cloneRuleset(STANDARD);
+  if (!stored) return base;
+  return {
+    ...base,
+    ...stored,
+    jaiAlai: {
+      ...base.jaiAlai,
+      ...(stored.jaiAlai ?? {}),
+      markerAwards: { ...base.jaiAlai.markerAwards, ...(stored.jaiAlai?.markerAwards ?? {}) },
+    },
+    ambitionValues: { ...base.ambitionValues, ...(stored.ambitionValues ?? {}) },
+  };
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { cloneRuleset, STANDARD, type Ruleset } from '@bahay/engine';
+import { cloneRuleset, normalizeRuleset, STANDARD, type Ruleset } from '@bahay/engine';
 import { KEYS, loadJson, saveJson } from '../lib/storage';
 import type { GameSpeed } from '../theme/tokens';
 
@@ -48,11 +48,12 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   hydrated: false,
 
   hydrate: async () => {
-    const [settings, ruleset] = await Promise.all([
+    const [settings, storedRuleset] = await Promise.all([
       loadJson<Settings>(KEYS.settings, DEFAULTS),
-      loadJson<Ruleset>(KEYS.ruleset, cloneRuleset(STANDARD)),
+      loadJson<Partial<Ruleset> | null>(KEYS.ruleset, null),
     ]);
-    set({ ...settings, ruleset, hydrated: true });
+    // A config saved by an older build gains any newly added options here.
+    set({ ...settings, ruleset: normalizeRuleset(storedRuleset), hydrated: true });
   },
 
   set: (key, value) => {

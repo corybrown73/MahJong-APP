@@ -14,6 +14,7 @@ import {
   cloneRuleset,
   PRESETS,
   type AmbitionId,
+  type JaiAlaiRules,
   type Ruleset,
 } from '@bahay/engine';
 import { Body, Button, Card, Choice, Divider, Muted, Screen, Term, Title, Toggle } from '../components/ui';
@@ -60,6 +61,11 @@ const FLAGS: {
     label: 'A draw ends the dealership',
     description: 'By default the máno keeps the deal when the wall runs out.',
   },
+  {
+    key: 'bisaklatStacksAmbitions',
+    label: 'Bisaklát Escaléra / Siete Pares',
+    description: 'A dealt winning hand that also carries a shape ambition pays it on top.',
+  },
 ];
 
 export default function RulesScreen() {
@@ -67,6 +73,14 @@ export default function RulesScreen() {
 
   const update = (patch: Partial<Ruleset>) =>
     setRuleset({ ...cloneRuleset(ruleset), ...patch, id: 'house', label: 'Our House' });
+
+  const updateJaiAlai = (patch: Partial<JaiAlaiRules>) =>
+    setRuleset({
+      ...cloneRuleset(ruleset),
+      id: 'house',
+      label: 'Our House',
+      jaiAlai: { ...ruleset.jaiAlai, ...patch, markerAwards: { ...ruleset.jaiAlai.markerAwards } },
+    });
 
   const setAmbition = (id: AmbitionId, value: number) =>
     setRuleset({
@@ -107,6 +121,70 @@ export default function RulesScreen() {
             onChange={(next) => update({ [flag.key]: next } as Partial<Ruleset>)}
           />
         ))}
+      </Card>
+
+      <Card>
+        <Term>Jai alái — the marker pot</Term>
+        <Muted style={{ fontSize: fontSize.small }}>
+          Everyone antes into a pot. A win earns a marker (talbog), a búnot or
+          bisaklát earns two, and a hand with an ambition earns one more. First
+          to the target sweeps the pot.
+        </Muted>
+        <Toggle
+          label="Play the jai alái"
+          value={ruleset.jaiAlai.enabled}
+          onChange={(next) => updateJaiAlai({ enabled: next })}
+        />
+        {ruleset.jaiAlai.enabled ? (
+          <View style={{ gap: space.sm }}>
+            <Choice
+              label="Ante"
+              value={ruleset.jaiAlai.ante}
+              options={[0.25, 0.5, 1].map((n) => ({ value: n, label: n.toFixed(2) }))}
+              onChange={(n) => updateJaiAlai({ ante: n })}
+            />
+            <Choice
+              label="Markers to win"
+              value={ruleset.jaiAlai.markersToWin}
+              options={[
+                { value: 5, label: '5 · jai alái' },
+                { value: 10, label: '10 · kalembang' },
+              ]}
+              onChange={(n) => updateJaiAlai({ markersToWin: n })}
+            />
+          </View>
+        ) : null}
+      </Card>
+
+      <Card>
+        <Term>Flower bonus threshold</Term>
+        <Muted style={{ fontSize: fontSize.small }}>
+          How many flowers pay the collector bonus. Visayan tables switch it off.
+        </Muted>
+        <Choice
+          label=""
+          value={ruleset.thirteenFlowersThreshold}
+          options={[
+            { value: 0, label: 'off' },
+            { value: 10, label: '10' },
+            { value: 13, label: '13' },
+            { value: 16, label: '16' },
+          ]}
+          onChange={(n) => update({ thirteenFlowersThreshold: n })}
+        />
+      </Card>
+
+      <Card>
+        <Term>Búnot multiplier</Term>
+        <Muted style={{ fontSize: fontSize.small }}>
+          What a self-drawn win multiplies the whole payout by.
+        </Muted>
+        <Choice
+          label=""
+          value={ambitionValue(ruleset, 'bunot')}
+          options={[2, 3].map((n) => ({ value: n, label: `×${n}` }))}
+          onChange={(n) => setAmbition('bunot', n)}
+        />
       </Card>
 
       <Card>
@@ -161,10 +239,13 @@ export default function RulesScreen() {
   );
 }
 
+/**
+ * Real tables disagree by a lot more than a little: the sources put escaléra
+ * anywhere from 0.5 to 4× the base win, so the picker runs the whole spread.
+ */
 function valueChoices(base: number): { value: number; label: string }[] {
-  const values =
-    base >= 10 ? [0, 10, 20, 40] : [0, 0.25, 0.5, 1].concat(base > 1 ? [base] : []);
-  return Array.from(new Set(values)).map((value) => ({
+  const values = base >= 10 ? [0, 10, 20, 40] : [0, 0.25, 0.5, 1, 2, 4];
+  return Array.from(new Set(values.concat(base))).map((value) => ({
     value,
     label: value === 0 ? 'off' : value.toFixed(2),
   }));

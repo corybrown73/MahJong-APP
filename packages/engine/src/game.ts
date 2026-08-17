@@ -61,8 +61,6 @@ import {
   WALL_SIZE,
 } from './wall.js';
 
-export const THIRTEEN_FLOWERS = 13;
-
 export type NewGameOptions = {
   seed: string;
   ruleset?: Ruleset;
@@ -70,6 +68,10 @@ export type NewGameOptions = {
   round?: number;
   handNumber?: number;
   chips?: [number, number, number, number];
+  /** Jai alái markers carried in from the previous hand. */
+  markers?: [number, number, number, number];
+  /** The jai alái pot carried in. Zero triggers a fresh ante when enabled. */
+  pot?: number;
 };
 
 function emptyPlayer(seat: SeatId, isDealer: boolean, chips: number): PlayerState {
@@ -96,6 +98,7 @@ export function cloneState(state: GameState): GameState {
       flowers: [...p.flowers],
     })) as GameState['players'],
     discards: state.discards.map((d) => ({ ...d })),
+    markers: [...state.markers] as [number, number, number, number],
     immediate: [...state.immediate],
     history: [...state.history],
     events: [],
@@ -135,7 +138,10 @@ function resolveFlowers(state: GameState, seat: SeatId, tile: Tile | null): Tile
     const flower = current as FlowerTile;
     player.flowers.push(flower);
     player.everDrewFlower = true;
-    if (player.flowers.length === THIRTEEN_FLOWERS) payImmediate(state, seat, 'thirteenFlowers');
+    const threshold = state.ruleset.thirteenFlowersThreshold;
+    if (threshold > 0 && player.flowers.length === threshold) {
+      payImmediate(state, seat, 'thirteenFlowers');
+    }
     const replacement = takeFromFlowerWall(state);
     state.events.push({
       type: 'FLOWER',
@@ -173,6 +179,8 @@ export function createGame(options: NewGameOptions): GameState {
     round = 1,
     handNumber = 1,
     chips = [0, 0, 0, 0],
+    markers = [0, 0, 0, 0],
+    pot = 0,
   } = options;
 
   const dice = rollDice(seed, handNumber);
@@ -199,11 +207,22 @@ export function createGame(options: NewGameOptions): GameState {
     handNumber,
     dealerSeat,
     doublesActive: ruleset.doublesOnDoubleRoll && isDoubles(dice),
+    markers: [...markers] as [number, number, number, number],
+    pot,
     immediate: [],
     history: [],
     events: [],
     pendingKang: null,
   };
+
+  // Jai alái: with no pot on the table, everyone antes before the deal —
+  // at the start of a session, and again after someone sweeps the pot.
+  if (ruleset.jaiAlai.enabled && state.pot === 0 && ruleset.jaiAlai.ante > 0) {
+    for (const seat of SEATS) {
+      state.players[seat].chips = round2(state.players[seat].chips - ruleset.jaiAlai.ante);
+    }
+    state.pot = round2(ruleset.jaiAlai.ante * 4);
+  }
 
   // Deal: 8 tiles twice around, counterclockwise from the máno, then the máno
   // takes a 17th tile and will discard first.
@@ -279,9 +298,51 @@ function endHand(state: GameState, ctx: Parameters<typeof settle>[0]): GameState
     state.players[transfer.from].chips = round2(state.players[transfer.from].chips - transfer.amount);
     state.players[transfer.to].chips = round2(state.players[transfer.to].chips + transfer.amount);
   }
+  awardMarkers(state, settlement);
   state.phase = { name: 'HAND_OVER', settlement };
   state.events.push({ type: 'HAND_OVER', settlement });
   return state;
+}
+
+/**
+ * Jai alái markers. Talbog (win on a discard) earns the base marker, búnot and
+ * bisaklát earn more, and a hand that carried any ambition beyond the base win
+ * earns the ambición bonus. A robbed kang arrives here as winType 'discard',
+ * which matches the common table ruling of one marker only.
+ */
+function awardMarkers(state: GameState, settlement: import('./types.js').Settlement): void {
+  const rules = state.ruleset.jaiAlai;
+  if (!rules.enabled || settlement.winner === null) return;
+
+  const winner = settlement.winner;
+  const awards = rules.markerAwards;
+  let markers =
+    settlement.winType === 'bisaklat'
+      ? awards.bisaklat
+      : settlement.winType === 'bunot'
+        ? awards.bunot
+        : awards.win;
+  let reason =
+    settlement.winType === 'bisaklat' ? 'Bisaklát' : settlement.winType === 'bunot' ? 'Búnot' : 'Talbog';
+
+  const hasAmbition = settlement.items.some(
+    (item) => item.ambition !== 'todas' && item.ambition !== 'bisaklat',
+  );
+  if (hasAmbition && awards.ambitionBonus > 0) {
+    markers += awards.ambitionBonus;
+    reason += ' ambición';
+  }
+  if (markers <= 0) return;
+
+  state.markers[winner] += markers;
+  settlement.markerAward = { seat: winner, markers, reason };
+
+  if (state.markers[winner] >= rules.markersToWin && state.pot > 0) {
+    settlement.potWin = { seat: winner, amount: state.pot };
+    state.players[winner].chips = round2(state.players[winner].chips + state.pot);
+    state.pot = 0;
+    state.markers = [0, 0, 0, 0];
+  }
 }
 
 function endHandDrawn(state: GameState): GameState {
@@ -798,6 +859,8 @@ export function nextHand(state: GameState): GameState {
     round,
     handNumber: state.handNumber + 1,
     chips: state.players.map((p) => p.chips) as [number, number, number, number],
+    markers: [...state.markers] as [number, number, number, number],
+    pot: state.pot,
   });
 }
 

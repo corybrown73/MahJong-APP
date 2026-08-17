@@ -105,6 +105,10 @@ export type Settlement = {
   transfers: Transfer[];
   /** Immediate ambitions already settled during the hand, for the win screen. */
   immediate: ImmediatePayout[];
+  /** Jai alái: markers earned this hand, when the pot is being played. */
+  markerAward?: { seat: SeatId; markers: number; reason: string };
+  /** Jai alái: set when this hand's markers reached the target and took the pot. */
+  potWin?: { seat: SeatId; amount: number };
 };
 
 export type ImmediatePayout = {
@@ -114,6 +118,25 @@ export type ImmediatePayout = {
   value: number;
   /** Total collected from the other three players. */
   amount: number;
+};
+
+/**
+ * The jai alái — the marker pot played as a session layer above the hands.
+ * Everyone antes into the pot; hand winners earn markers (talbog 1, búnot 2,
+ * bisaklát 2, +1 when the hand carried an ambition); first to `markersToWin`
+ * sweeps the pot. Ten markers instead of five is the kalembang variant.
+ */
+export type JaiAlaiRules = {
+  enabled: boolean;
+  ante: number;
+  markersToWin: number;
+  markerAwards: {
+    win: number;
+    bunot: number;
+    bisaklat: number;
+    /** Extra marker when the winning hand had any ambition beyond the base win. */
+    ambitionBonus: number;
+  };
 };
 
 export type Ruleset = {
@@ -130,6 +153,11 @@ export type Ruleset = {
   bisaklatValue: number;
   drawEndsDealership: boolean;
   roundsPerGame: number;
+  /** How many flowers pay the thirteen-flowers bonus. 0 disables it (Visayan). */
+  thirteenFlowersThreshold: number;
+  /** Bisaklát Escaléra / Bisaklát Siete Pares: dealt-hand ambitions stack on top. */
+  bisaklatStacksAmbitions: boolean;
+  jaiAlai: JaiAlaiRules;
   ambitionValues: Record<AmbitionId, number>;
 };
 
@@ -179,6 +207,10 @@ export type GameState = {
   handNumber: number;
   dealerSeat: SeatId;
   doublesActive: boolean;
+  /** Jai alái markers per seat, carried across hands. All zeros when disabled. */
+  markers: [number, number, number, number];
+  /** The jai alái pot. Anted at session start, re-anted after a pot is won. */
+  pot: number;
   /** Immediate ambitions paid so far this hand. */
   immediate: ImmediatePayout[];
   /** Full action log — replays, and undo in the tutorial. */

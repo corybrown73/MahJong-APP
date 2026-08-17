@@ -200,19 +200,57 @@ export function settle(ctx: WinContext): Settlement {
   const ruleset = state.ruleset;
 
   if (winType === 'bisaklat') {
-    // Flat, and it replaces all other scoring.
-    const value = ruleset.bisaklatValue;
+    // Flat by default, replacing all other scoring. Tables that pay Bisaklát
+    // Escaléra / Bisaklát Siete Pares stack the dealt hand's shape ambitions
+    // on top — that is the bisaklatStacksAmbitions flag.
     const items: SettlementItem[] = [
-      { ambition: 'bisaklat', label: label('bisaklat'), value },
+      { ambition: 'bisaklat', label: label('bisaklat'), value: ruleset.bisaklatValue },
     ];
+    if (ruleset.bisaklatStacksAmbitions) {
+      const player = state.players[winner];
+      const shapes = analyseWin({
+        concealed: player.concealed,
+        melds: player.melds,
+        joker: state.joker,
+        sieteParesRequiresConcealed: ruleset.sieteParesRequiresConcealed,
+      });
+      const SHAPE_AMBITIONS: AmbitionId[] = ['escalera', 'sietePares', 'fullFlush', 'allPungs', 'allChows'];
+      let best: SettlementItem[] = [];
+      let bestSum = 0;
+      for (const shape of shapes) {
+        const extras: SettlementItem[] = [];
+        const add = (id: AmbitionId) => {
+          const value = ambitionValue(ruleset, id);
+          if (value !== 0) extras.push({ ambition: id, label: label(id), value });
+        };
+        if (shape.kind === 'siete') add('sietePares');
+        if (isEscalera(shape)) add('escalera');
+        if (isFullFlush(shape)) add('fullFlush');
+        if (shape.kind === 'standard' && !shape.sets.some((set) => set.type === 'chow')) add('allPungs');
+        if (
+          shape.kind === 'standard' &&
+          !shape.sets.some((set) => set.type === 'pung' || set.type === 'kang')
+        ) {
+          add('allChows');
+        }
+        const kept = extras.filter((item) => SHAPE_AMBITIONS.includes(item.ambition));
+        const sum = kept.reduce((n, item) => n + item.value, 0);
+        if (sum > bestSum) {
+          bestSum = sum;
+          best = kept;
+        }
+      }
+      items.push(...best);
+    }
+    const total = round2(items.reduce((n, item) => n + item.value, 0));
     return {
       winner,
       winType,
       discarder: null,
       items,
       multipliers: [],
-      total: value,
-      transfers: transfersFor(winner, 'bunot', null, value),
+      total,
+      transfers: transfersFor(winner, 'bunot', null, total),
       immediate: state.immediate,
     };
   }
