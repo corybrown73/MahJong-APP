@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   AMBITIONS,
@@ -17,8 +17,20 @@ import {
   type JaiAlaiRules,
   type Ruleset,
 } from '@bahay/engine';
-import { Body, Button, Card, Choice, Divider, Muted, Screen, Term, Title, Toggle } from '../components/ui';
-import { fontSize, space } from '../theme/tokens';
+import {
+  Body,
+  Button,
+  Card,
+  Choice,
+  Divider,
+  Muted,
+  Screen,
+  Term,
+  Title,
+  Toggle,
+  usePalette,
+} from '../components/ui';
+import { fontSize, radius, space, type } from '../theme/tokens';
 import { useSettings } from '../store/settings';
 
 const FLAGS: {
@@ -68,8 +80,19 @@ const FLAGS: {
   },
 ];
 
+/** The ambitions a table might count as a "major" for the bonus marker. */
+const MAJOR_CANDIDATES: { id: AmbitionId; label: string }[] = [
+  { id: 'sietePares', label: 'Siete pares' },
+  { id: 'allPungs', label: 'Total pong' },
+  { id: 'escalera', label: 'Escaléra' },
+  { id: 'fullFlush', label: 'Full flush' },
+  { id: 'allChows', label: 'All chows' },
+  { id: 'concealedHand', label: 'Concealed' },
+];
+
 export default function RulesScreen() {
   const { ruleset, setRuleset } = useSettings();
+  const palette = usePalette();
 
   const update = (patch: Partial<Ruleset>) =>
     setRuleset({ ...cloneRuleset(ruleset), ...patch, id: 'house', label: 'Our House' });
@@ -79,7 +102,12 @@ export default function RulesScreen() {
       ...cloneRuleset(ruleset),
       id: 'house',
       label: 'Our House',
-      jaiAlai: { ...ruleset.jaiAlai, ...patch, markerAwards: { ...ruleset.jaiAlai.markerAwards } },
+      jaiAlai: {
+        ...ruleset.jaiAlai,
+        markerAwards: { ...ruleset.jaiAlai.markerAwards },
+        majors: [...ruleset.jaiAlai.majors],
+        ...patch,
+      },
     });
 
   const setAmbition = (id: AmbitionId, value: number) =>
@@ -152,6 +180,47 @@ export default function RulesScreen() {
               ]}
               onChange={(n) => updateJaiAlai({ markersToWin: n })}
             />
+            <Body>The majors</Body>
+            <Muted style={{ fontSize: fontSize.small }}>
+              A win carrying any of these earns the extra marker — so a major
+              pays {ruleset.jaiAlai.markerAwards.win + ruleset.jaiAlai.markerAwards.ambitionBonus},
+              the same as a búnot. Tap to include or drop one.
+            </Muted>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+              {MAJOR_CANDIDATES.map((candidate) => {
+                const active = ruleset.jaiAlai.majors.includes(candidate.id);
+                return (
+                  <Pressable
+                    key={candidate.id}
+                    onPress={() =>
+                      updateJaiAlai({
+                        majors: active
+                          ? ruleset.jaiAlai.majors.filter((id) => id !== candidate.id)
+                          : [...ruleset.jaiAlai.majors, candidate.id],
+                      })
+                    }
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: active }}
+                    style={{
+                      paddingVertical: 9,
+                      paddingHorizontal: space.md,
+                      borderRadius: radius.pill,
+                      backgroundColor: active ? palette.gold : 'rgba(255,255,255,0.07)',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: type.bodyMedium,
+                        fontSize: fontSize.small,
+                        color: active ? '#2A1D07' : palette.capiz,
+                      }}
+                    >
+                      {candidate.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         ) : null}
       </Card>

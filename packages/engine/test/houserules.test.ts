@@ -9,7 +9,7 @@ import {
 } from '../src/rulesets.js';
 import { settle } from '../src/scoring.js';
 import type { GameState, Ruleset, SeatId, Settlement } from '../src/types.js';
-import { table, tile } from './helpers.js';
+import { table, tile, tiles } from './helpers.js';
 
 function jaiAlaiRuleset(overrides: Partial<Ruleset> = {}): Ruleset {
   return {
@@ -229,5 +229,59 @@ describe('normalizeRuleset', () => {
 
   it('returns the standard book for nothing stored', () => {
     expect(normalizeRuleset(null).id).toBe('standard');
+  });
+});
+
+describe('the majors', () => {
+  function jaiAlaiState(hand: string) {
+    const state = table({ hands: [hand] });
+    state.ruleset = jaiAlaiRuleset();
+    state.pot = 1;
+    for (const player of state.players) player.everDrewFlower = true;
+    // Push past the quick-win window so timing ambitions stay out of the way.
+    for (let i = 0; i < 8; i++) state.discards.push({ tile: tile('k1'), from: 1, claimed: false });
+    return state;
+  }
+
+  function declareAndSettle(state: GameState): Settlement {
+    const action = legalActions(state, 0).find((a) => a.type === 'DECLARE_TODAS')!;
+    const after = reduce(state, action);
+    if (after.phase.name !== 'HAND_OVER') throw new Error('hand not over');
+    return after.phase.settlement;
+  }
+
+  it('defaults to siete pares, total pong and escaléra', () => {
+    expect(defaultJaiAlai().majors.sort()).toEqual(['allPungs', 'escalera', 'sietePares']);
+  });
+
+  it('pays a búnot with a major three markers (búnot ambición)', () => {
+    // Escaléra in balls — a major at the default table.
+    const settlement = declareAndSettle(jaiAlaiState('b123 b456 b789 k123 k456 c99'));
+    expect(settlement.markerAward!.markers).toBe(3);
+    expect(settlement.markerAward!.reason).toBe('Búnot ambición');
+  });
+
+  it('pays total pong the bonus too', () => {
+    const settlement = declareAndSettle(jaiAlaiState('b111 b222 k333 k444 c555 c66'));
+    expect(settlement.items.map((i) => i.ambition)).toContain('allPungs');
+    expect(settlement.markerAward!.markers).toBe(3);
+  });
+
+  it('does not pay the bonus for a non-major ambition', () => {
+    // Concealed hand and single wait are ambitions, but not majors.
+    const state = jaiAlaiState('b123 b456 k555 c123 c456 c99');
+    state.ruleset.jaiAlai.majors = ['sietePares', 'allPungs', 'escalera'];
+    const settlement = declareAndSettle(state);
+    expect(settlement.items.some((i) => i.ambition === 'escalera')).toBe(false);
+    expect(settlement.markerAward!.markers).toBe(2); // búnot alone
+    expect(settlement.markerAward!.reason).toBe('Búnot');
+  });
+
+  it('respects an edited majors list', () => {
+    const state = jaiAlaiState('b123 b456 k555 c123 c456 c99');
+    state.ruleset.jaiAlai.majors = ['concealedHand'];
+    const settlement = declareAndSettle(state);
+    expect(settlement.items.map((i) => i.ambition)).toContain('concealedHand');
+    expect(settlement.markerAward!.markers).toBe(3);
   });
 });

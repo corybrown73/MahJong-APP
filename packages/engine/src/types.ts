@@ -134,9 +134,15 @@ export type JaiAlaiRules = {
     win: number;
     bunot: number;
     bisaklat: number;
-    /** Extra marker when the winning hand had any ambition beyond the base win. */
+    /** Extra marker(s) when the winning hand carried a major ambition. */
     ambitionBonus: number;
   };
+  /**
+   * The "majors" — the ambitions this table counts for the bonus marker.
+   * A plain win earns `win` markers; a win carrying any of these earns
+   * `win + ambitionBonus` (so with the defaults, a major pays 2).
+   */
+  majors: AmbitionId[];
 };
 
 export type Ruleset = {

@@ -186,13 +186,18 @@ export function defaultAmbitionValues(): Record<AmbitionId, number> {
   >;
 }
 
-/** Talbog 1, búnot 2, bisaklát 2, ambitions +1 — the common marker schedule. */
+/**
+ * Talbog 1, búnot 2, bisaklát 2, and a major ambition +1 — so each of the
+ * classic "majors" (siete pares, total pong, escaléra) lands on 2 markers,
+ * matching búnot. The majors list is the table's to edit.
+ */
 export function defaultJaiAlai(): JaiAlaiRules {
   return {
     enabled: false,
     ante: 0.25,
     markersToWin: 5,
     markerAwards: { win: 1, bunot: 2, bisaklat: 2, ambitionBonus: 1 },
+    majors: ['sietePares', 'allPungs', 'escalera'],
   };
 }
 
@@ -250,7 +255,11 @@ export function ambitionValue(ruleset: Ruleset, id: import('./types.js').Ambitio
 export function cloneRuleset(ruleset: Ruleset): Ruleset {
   return {
     ...ruleset,
-    jaiAlai: { ...ruleset.jaiAlai, markerAwards: { ...ruleset.jaiAlai.markerAwards } },
+    jaiAlai: {
+      ...ruleset.jaiAlai,
+      markerAwards: { ...ruleset.jaiAlai.markerAwards },
+      majors: [...ruleset.jaiAlai.majors],
+    },
     ambitionValues: { ...ruleset.ambitionValues },
   };
 }
@@ -269,6 +278,7 @@ export function normalizeRuleset(stored: Partial<Ruleset> | null | undefined): R
       ...base.jaiAlai,
       ...(stored.jaiAlai ?? {}),
       markerAwards: { ...base.jaiAlai.markerAwards, ...(stored.jaiAlai?.markerAwards ?? {}) },
+      majors: stored.jaiAlai?.majors ?? base.jaiAlai.majors,
     },
     ambitionValues: { ...base.ambitionValues, ...(stored.ambitionValues ?? {}) },
   };

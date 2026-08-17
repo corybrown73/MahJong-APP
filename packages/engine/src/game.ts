@@ -325,10 +325,10 @@ function awardMarkers(state: GameState, settlement: import('./types.js').Settlem
   let reason =
     settlement.winType === 'bisaklat' ? 'Bisaklát' : settlement.winType === 'bunot' ? 'Búnot' : 'Talbog';
 
-  const hasAmbition = settlement.items.some(
-    (item) => item.ambition !== 'todas' && item.ambition !== 'bisaklat',
-  );
-  if (hasAmbition && awards.ambitionBonus > 0) {
+  // Only the table's "majors" earn the bonus marker — by default siete pares,
+  // total pong (all pungs) and escaléra, so a major win lands on 2.
+  const hasMajor = settlement.items.some((item) => rules.majors.includes(item.ambition));
+  if (hasMajor && awards.ambitionBonus > 0) {
     markers += awards.ambitionBonus;
     reason += ' ambición';
   }
