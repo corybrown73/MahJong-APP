@@ -2,12 +2,13 @@
   "name": "bahay",
   "private": true,
   "version": "0.1.0",
-  "description": "Báhay — Filipino (16-tile) mahjong",
+  "description": "B\u00e1hay \u2014 Filipino (16-tile) mahjong",
   "scripts": {
-    "test": "pnpm --filter @bahay/engine test && pnpm --filter @bahay/ai test",
+    "test": "pnpm --filter @bahay/engine test && pnpm --filter @bahay/ai test && pnpm --filter @bahay/room test",
     "typecheck": "pnpm -r typecheck",
     "play": "pnpm --filter @bahay/ai play",
-    "mobile": "pnpm --filter @bahay/mobile start"
+    "mobile": "pnpm --filter @bahay/mobile start",
+    "bundle:room": "node scripts/bundle-room.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

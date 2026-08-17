@@ -29,6 +29,9 @@ importers:
       '@bahay/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@bahay/room':
+        specifier: workspace:*
+        version: link:../../packages/room
       '@expo-google-fonts/inter':
         specifier: ^0.4.2
         version: 0.4.2
@@ -124,6 +127,22 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.8
         version: 2.1.9(vitest@2.1.9(@types/node@26.2.0)(lightningcss@1.33.0)(terser@5.50.0))
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@26.2.0)(lightningcss@1.33.0)(terser@5.50.0)
+
+  packages/room:
+    dependencies:
+      '@bahay/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@bahay/engine':
+        specifier: workspace:*
+        version: link:../engine
+    devDependencies:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -5062,9 +5081,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 

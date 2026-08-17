@@ -51,7 +51,12 @@ export default function Home() {
           router.push('/table');
         }}
       />
-      <Button label="Learn" tone="secondary" onPress={() => router.push('/learn')} />
+      <Button
+        label="Play with family"
+        tone="secondary"
+        onPress={() => router.push('/play')}
+      />
+      <Button label="Learn" tone="ghost" onPress={() => router.push('/learn')} />
       <Button label="House Rules" tone="ghost" onPress={() => router.push('/rules')} />
       <Button label="Stats" tone="ghost" onPress={() => router.push('/stats')} />
       <Button label="Settings" tone="ghost" onPress={() => router.push('/settings')} />

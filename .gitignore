@@ -7,3 +7,6 @@ web-build/
 *.log
 .DS_Store
 *.tsbuildinfo
+
+# Generated server bundle — rebuild with `pnpm bundle:room`
+supabase/functions/bahay-room/_room.js

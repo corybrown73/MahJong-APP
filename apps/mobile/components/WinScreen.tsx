@@ -22,9 +22,20 @@ type Props = {
   winnerHand: { concealed: TileModel[]; melds: Meld[] } | null;
   onNextHand: () => void;
   onLeave: () => void;
+  /** Online: only the host deals, so everyone else waits and is told so. */
+  nextHandLabel?: string;
+  nextHandDisabled?: boolean;
 };
 
-export function WinScreen({ settlement, names, winnerHand, onNextHand, onLeave }: Props) {
+export function WinScreen({
+  settlement,
+  names,
+  winnerHand,
+  onNextHand,
+  onLeave,
+  nextHandLabel = 'Next hand',
+  nextHandDisabled = false,
+}: Props) {
   const { speed, reducedMotion } = useSettings();
   const [showHand, setShowHand] = useState(false);
   const [visibleLines, setVisibleLines] = useState(reducedMotion ? 99 : 0);
@@ -183,7 +194,12 @@ export function WinScreen({ settlement, names, winnerHand, onNextHand, onLeave }
                 style={{ flex: 1 }}
               />
             ) : null}
-            <Button label="Next hand" onPress={onNextHand} style={{ flex: 1 }} />
+            <Button
+              label={nextHandLabel}
+              onPress={onNextHand}
+              disabled={nextHandDisabled}
+              style={{ flex: 1 }}
+            />
           </View>
           <Button label="Leave the table" tone="ghost" onPress={onLeave} />
         </ScrollView>

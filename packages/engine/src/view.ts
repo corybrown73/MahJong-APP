@@ -43,6 +43,11 @@ export type PublicGameView = {
   tilesRemaining: number;
   dealerSeat: SeatId;
   round: number;
+  handNumber: number;
+  doublesActive: boolean;
+  /** Jai alái markers per seat, and the pot. Public at any real table. */
+  markers: [number, number, number, number];
+  pot: number;
 };
 
 export function publicView(state: GameState, seat: SeatId): PublicGameView {
@@ -67,6 +72,10 @@ export function publicView(state: GameState, seat: SeatId): PublicGameView {
     tilesRemaining: wallRemaining(state),
     dealerSeat: state.dealerSeat,
     round: state.round,
+    handNumber: state.handNumber,
+    doublesActive: state.doublesActive,
+    markers: [...state.markers] as [number, number, number, number],
+    pot: state.pot,
   };
 }
 
