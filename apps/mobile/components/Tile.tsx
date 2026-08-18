@@ -21,6 +21,8 @@ import { colors, radius, type Palette } from '../theme/tokens';
 import { TileFace } from './TileFace';
 
 export const TILE_RATIO = 83 / 62; // height : width
+/** The bevel along the bottom edge, which eats into the tile's content box. */
+export const TILE_EDGE = 3;
 
 export type TileState = {
   selected?: boolean;
@@ -124,7 +126,14 @@ export function Tile({
       {faceDown ? (
         <View style={[styles.backInset, { borderColor: 'rgba(255,255,255,0.14)' }]} />
       ) : (
-        <TileFace tile={tile} width={width} height={height} palette={palette} bold={boldEngraving} />
+        <TileFace
+          tile={tile}
+          width={width}
+          // The bevel is inside the box, so the face gets what is left.
+          height={height - TILE_EDGE}
+          palette={palette}
+          bold={boldEngraving}
+        />
       )}
 
       {joker && !faceDown ? (
@@ -162,7 +171,7 @@ const styles = StyleSheet.create({
   tile: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: 3,
+    borderBottomWidth: TILE_EDGE,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,

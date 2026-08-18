@@ -12,7 +12,9 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Rect } from 'react-native-svg';
 import type { Tile } from '@bahay/engine';
-import { colors, suitColor, type Palette } from '../theme/tokens';
+import { colors, suitColor, type, type Palette } from '../theme/tokens';
+
+type SuitedTileLike = Extract<Tile, { kind: 'suited' }>;
 
 const CHINESE_NUMERALS = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
@@ -114,6 +116,65 @@ type FaceProps = {
   bold?: boolean;
 };
 
+/**
+ * Share of the tile's height given to the rank. Tiles overlap on the rack, so
+ * the numeral lives at the top left — the sliver that always stays visible.
+ */
+const INDEX_STRIP = 0.3;
+
+/**
+ * The suit, as a shape rather than a word: a circle for bolá, a stalk for
+ * kahoy, a block for letra. Shape plus colour means the suit still reads on a
+ * colourblind path, and it survives being drawn at eight pixels.
+ */
+function SuitMark({
+  suit,
+  size,
+  color,
+  bold,
+}: {
+  suit: 'balls' | 'sticks' | 'chars';
+  size: number;
+  color: string;
+  bold?: boolean;
+}) {
+  if (suit === 'balls') {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: Math.max(1, size * (bold ? 0.26 : 0.2)),
+          borderColor: color,
+        }}
+      />
+    );
+  }
+  if (suit === 'sticks') {
+    return (
+      <View
+        style={{
+          width: Math.max(2, size * 0.38),
+          height: size,
+          borderRadius: size * 0.2,
+          backgroundColor: color,
+        }}
+      />
+    );
+  }
+  return (
+    <View
+      style={{
+        width: size * 0.88,
+        height: size * 0.88,
+        borderRadius: 1.5,
+        backgroundColor: color,
+      }}
+    />
+  );
+}
+
 export function TileFace({ tile, width, height, palette = colors, bold = false }: FaceProps) {
   if (tile.kind === 'flower') {
     const glyph = FLOWER_GLYPHS[tile.face] ?? '花';
@@ -136,6 +197,44 @@ export function TileFace({ tile, width, height, palette = colors, bold = false }
     );
   }
 
+  // Every suited tile carries its rank as a numeral. Counting six dots or
+  // reading 五 is a skill; the number is not, and beginners should not have to
+  // learn one to play the other.
+  const tone = suitColor(tile.suit, palette);
+  const stripHeight = Math.max(10, height * INDEX_STRIP);
+  const artHeight = height - stripHeight;
+  const gutter = Math.max(2, width * 0.1);
+
+  return (
+    <View style={{ width, height }}>
+      <View style={[styles.indexRow, { height: stripHeight, paddingLeft: gutter }]}>
+        <Text
+          style={{
+            fontFamily: type.display,
+            fontSize: stripHeight * 0.92,
+            lineHeight: stripHeight,
+            color: tone,
+            includeFontPadding: false,
+          }}
+        >
+          {tile.rank}
+        </Text>
+      </View>
+      <View style={{ width, height: artHeight, alignItems: 'center', justifyContent: 'center' }}>
+        {suitedArt(tile, width, artHeight, palette, bold)}
+      </View>
+    </View>
+  );
+}
+
+/** The traditional face: dots, stalks, or the character and 萬. */
+function suitedArt(
+  tile: SuitedTileLike,
+  width: number,
+  height: number,
+  palette: Palette,
+  bold: boolean,
+) {
   if (tile.suit === 'chars') {
     return (
       <View style={styles.center}>
@@ -241,7 +340,10 @@ function colorWithAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/** A compact label for the discard pool, where a full face would be mush. */
+/**
+ * A compact label for the discard pool and for exposed melds, where a full
+ * face would be mush: the rank as a numeral, plus the suit as a shape.
+ */
 export function TileGlyph({ tile, size, palette = colors }: { tile: Tile; size: number; palette?: Palette }) {
   if (tile.kind === 'flower') {
     return (
@@ -251,29 +353,26 @@ export function TileGlyph({ tile, size, palette = colors }: { tile: Tile; size: 
     );
   }
   const tone = suitColor(tile.suit, palette);
-  if (tile.suit === 'chars') {
-    return (
-      <Text style={{ fontSize: size * 0.62, color: tone, fontWeight: '700' }}>
-        {CHINESE_NUMERALS[tile.rank - 1]}
-      </Text>
-    );
-  }
-  if (tile.suit === 'balls') {
-    return (
-      <Text style={{ fontSize: size * 0.55, color: tone, fontWeight: '700' }}>
-        {'●'.repeat(Math.min(tile.rank, 3))}
-        {tile.rank > 3 ? tile.rank : ''}
-      </Text>
-    );
-  }
   return (
-    <Text style={{ fontSize: size * 0.55, color: tone, fontWeight: '700' }}>
-      {'丨'.repeat(Math.min(tile.rank, 3))}
-      {tile.rank > 3 ? tile.rank : ''}
-    </Text>
+    <View style={styles.glyph}>
+      <Text
+        style={{
+          fontFamily: type.display,
+          fontSize: size * 0.95,
+          lineHeight: size * 1.05,
+          color: tone,
+          includeFontPadding: false,
+        }}
+      >
+        {tile.rank}
+      </Text>
+      <SuitMark suit={tile.suit} size={size * 0.4} color={tone} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
+  indexRow: { flexDirection: 'row', alignItems: 'center' },
+  glyph: { flexDirection: 'row', alignItems: 'center', gap: 1.5 },
 });
