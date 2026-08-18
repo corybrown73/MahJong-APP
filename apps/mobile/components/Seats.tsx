@@ -37,27 +37,36 @@ export function OpponentStrip({
   onMeldPress?: (meld: Meld) => void;
 }) {
   const palette = usePalette();
+  // The side seats are seen edge-on from where you sit, so their tiles stack
+  // down the screen rather than across it — a column of sideways backs, never
+  // a wrapped block that reads as one clump.
   const vertical = orientation !== 'top';
+  const maxBacks = vertical ? 9 : 10;
+  const hidden = Math.max(0, summary.concealedCount - maxBacks);
 
   return (
     <View style={[styles.seat, vertical ? styles.seatVertical : null]}>
       <Text
         style={[
           styles.name,
+          vertical ? styles.nameVertical : null,
           {
             color: active ? palette.gold : palette.capiz,
             opacity: active ? 1 : 0.55,
           },
         ]}
-        numberOfLines={1}
+        numberOfLines={vertical ? 2 : 1}
       >
         {active ? '◆ ' : ''}
         {summary.name}
         {summary.isDealer ? ' · máno' : ''}
       </Text>
 
-      <View style={[styles.backs, vertical ? styles.backsVertical : null]}>
-        {Array.from({ length: Math.min(summary.concealedCount, vertical ? 6 : 10) }).map((_, i) => (
+      <View
+        style={[styles.backs, vertical ? styles.backsVertical : null]}
+        accessibilityLabel={`${summary.name} holds ${summary.concealedCount} tiles`}
+      >
+        {Array.from({ length: Math.min(summary.concealedCount, maxBacks) }).map((_, i) => (
           <View
             key={i}
             style={[
@@ -66,9 +75,9 @@ export function OpponentStrip({
             ]}
           />
         ))}
-        {summary.concealedCount > (vertical ? 6 : 10) ? (
-          <Text style={[styles.count, { color: palette.capiz }]}>
-            +{summary.concealedCount - (vertical ? 6 : 10)}
+        {hidden > 0 ? (
+          <Text style={[styles.count, vertical ? styles.countVertical : null, { color: palette.capiz }]}>
+            +{hidden}
           </Text>
         ) : null}
       </View>
@@ -145,13 +154,22 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
+  // Side seats are narrow; wrap the name rather than clipping it.
+  nameVertical: { letterSpacing: 0.6, textAlign: 'center' },
   backs: { flexDirection: 'row', gap: 2, alignItems: 'center' },
-  backsVertical: { flexWrap: 'wrap', justifyContent: 'center', maxWidth: 92 },
+  // A column, not a wrapped row: one tile per line, edge-on.
+  backsVertical: {
+    flexDirection: 'column',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    gap: 3,
+  },
   mini: { width: 15, height: 21, borderRadius: 3, borderBottomWidth: 2 },
-  miniVertical: { width: 13, height: 18, borderRadius: 3 },
+  miniVertical: { width: 28, height: 13, borderRadius: 3, borderBottomWidth: 2 },
   count: { fontFamily: type.body, fontSize: fontSize.micro, opacity: 0.5, marginLeft: 2 },
+  countVertical: { marginLeft: 0, marginTop: 1 },
   melds: { flexDirection: 'row', gap: 5, flexWrap: 'wrap', justifyContent: 'center' },
-  meldsVertical: { maxWidth: 92 },
+  meldsVertical: { flexDirection: 'column', alignItems: 'center', maxWidth: 92 },
   meld: { flexDirection: 'row', gap: 1, padding: 2, borderRadius: radius.tile - 2 },
   meldTile: {
     width: 15,
