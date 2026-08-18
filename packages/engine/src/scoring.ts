@@ -16,6 +16,7 @@ import type {
   SeatId,
   Settlement,
   SettlementItem,
+  Meld,
   Suit,
   Tile,
   Transfer,
@@ -252,6 +253,7 @@ export function settle(ctx: WinContext): Settlement {
       total,
       transfers: transfersFor(winner, 'bunot', null, total),
       immediate: state.immediate,
+      winnerHand: revealHand(state, winner),
     };
   }
 
@@ -303,7 +305,14 @@ export function settle(ctx: WinContext): Settlement {
     total: round2(total),
     transfers: transfersFor(winner, winType, discarder, round2(total)),
     immediate: state.immediate,
+    winnerHand: revealHand(state, winner),
   };
+}
+
+/** The winner's tiles, face up, for the settlement screen. */
+function revealHand(state: GameState, winner: SeatId): { concealed: Tile[]; melds: Meld[] } {
+  const player = state.players[winner];
+  return { concealed: [...player.concealed], melds: player.melds.map((m) => ({ ...m })) };
 }
 
 export function drawSettlement(state: GameState): Settlement {

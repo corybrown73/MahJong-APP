@@ -62,8 +62,12 @@ export function DiscardPool({ discards, tilesRemaining, onTapTile }: Props) {
           })
         )}
       </View>
-      <Text style={[styles.wallCount, { color: palette.capiz }]}>
-        WALL · {tilesRemaining} TILES REMAINING
+      <Text
+        style={[styles.wallCount, { color: palette.capiz }]}
+        numberOfLines={1}
+        accessibilityLabel={`${tilesRemaining} tiles left in the wall`}
+      >
+        WALL · {tilesRemaining} LEFT
       </Text>
     </View>
   );

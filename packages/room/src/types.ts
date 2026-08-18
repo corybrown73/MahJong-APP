@@ -73,6 +73,7 @@ export type RoomEvent =
   | { type: 'SEAT_FILLED'; seat: SeatId; name: string; at: number }
   | { type: 'STARTED'; at: number }
   | { type: 'HAND_OVER'; settlement: Settlement; at: number }
+  | { type: 'HOST_CHANGED'; name: string; at: number }
   | { type: 'GAME'; seat: SeatId; action: Action; at: number };
 
 export type RoomCommand =
@@ -85,8 +86,13 @@ export type RoomCommand =
   | { type: 'START'; playerId: PlayerId; at: number }
   | { type: 'GAME_ACTION'; playerId: PlayerId; action: Action; at: number }
   | { type: 'NEXT_HAND'; playerId: PlayerId; at: number }
-  /** The heartbeat: drives AI seats and expires claim windows. */
-  | { type: 'TICK'; at: number };
+  /**
+   * The heartbeat: drives AI seats and expires claim windows. `playerId` is
+   * the client that sent it — a seat that keeps ticking is a seat somebody is
+   * still sitting in, which is how a table tells a thinking player from one
+   * whose phone went in a pocket.
+   */
+  | { type: 'TICK'; at: number; playerId?: PlayerId };
 
 export type CommandResult = { room: Room; error?: string; changed: boolean };
 
@@ -113,6 +119,8 @@ export type RoomView = {
   /** Filtered: your tiles, everyone else's counts. Never the wall. */
   game: PublicGameView | null;
   settlement: Settlement | null;
+  /** The session has run its rounds: there is no next hand to deal. */
+  sessionOver: boolean;
   claimDeadline: number | null;
   events: RoomEvent[];
 };

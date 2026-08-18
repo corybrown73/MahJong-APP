@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   // Side seats are narrow; wrap the name rather than clipping it.
-  nameVertical: { letterSpacing: 0.6, textAlign: 'center' },
+  nameVertical: { letterSpacing: 0, textAlign: 'center' },
   backs: { flexDirection: 'row', gap: 2, alignItems: 'center' },
   // A column, not a wrapped row: one tile per line, edge-on.
   backsVertical: {

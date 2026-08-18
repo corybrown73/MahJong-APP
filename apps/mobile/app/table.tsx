@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import {
   claimOptions,
+  isLastHand,
   legalActions,
   publicView,
   seatsAwaitingClaimResponse,
@@ -68,6 +69,10 @@ export default function SoloTableScreen() {
     );
   }
 
+  // A session runs a set number of rounds; when the last one is done the
+  // table stops offering another deal and shows where everybody finished.
+  const sessionOver = isLastHand(state);
+
   const waitingOnClaims = seatsAwaitingClaimResponse(state);
   const active = currentSeat(state);
   const waiting: SeatId[] =
@@ -87,7 +92,8 @@ export default function SoloTableScreen() {
       pendingDiscard={!!game.pendingDiscard}
       settlement={state.phase.name === 'HAND_OVER' ? state.phase.settlement : null}
       waiting={waiting}
-      canDealNextHand
+      canDealNextHand={!sessionOver}
+      sessionOver={sessionOver}
       showHint={game.showHint}
       onSelectTile={game.selectTile}
       onConfirmDiscard={game.confirmDiscard}

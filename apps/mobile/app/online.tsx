@@ -107,7 +107,8 @@ export default function OnlineTableScreen() {
       settlement={view.settlement}
       waiting={waiting}
       statusLine={statusLine}
-      canDealNextHand={youAreHost}
+      canDealNextHand={youAreHost && !view.sessionOver}
+      sessionOver={view.sessionOver}
       showHint={room.showHint}
       onSelectTile={room.selectTile}
       onConfirmDiscard={room.confirmDiscard}

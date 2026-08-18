@@ -43,7 +43,13 @@ export const useStats = create<StatsStore>((set, get) => ({
 
   recordHand: (settlement, youAre) => {
     const current = get();
-    const won = settlement.winner === youAre;
+    // When two seats win one discard, the second is carried as a co-winner —
+    // your own line is whichever settlement names you.
+    const yours =
+      settlement.winner === youAre
+        ? settlement
+        : (settlement.coWinners ?? []).find((other) => other.winner === youAre);
+    const won = yours !== undefined;
     const drawn = settlement.winner === null;
     const delta = settlement.transfers.reduce((n, transfer) => {
       if (transfer.to === youAre) return n + transfer.amount;
@@ -52,8 +58,8 @@ export const useStats = create<StatsStore>((set, get) => ({
     }, 0);
 
     const ambitions = { ...current.ambitions };
-    if (won) {
-      for (const item of settlement.items) {
+    if (yours) {
+      for (const item of yours.items) {
         ambitions[item.ambition] = (ambitions[item.ambition] ?? 0) + 1;
       }
     }
@@ -68,7 +74,7 @@ export const useStats = create<StatsStore>((set, get) => ({
       handsWon: current.handsWon + (won ? 1 : 0),
       handsDrawn: current.handsDrawn + (drawn ? 1 : 0),
       chipsNet: Math.round((current.chipsNet + delta) * 100) / 100,
-      bestHand: won ? Math.max(current.bestHand, settlement.total) : current.bestHand,
+      bestHand: yours ? Math.max(current.bestHand, yours.total) : current.bestHand,
       longestStreak: Math.max(current.longestStreak, currentStreak),
       currentStreak,
       ambitions,

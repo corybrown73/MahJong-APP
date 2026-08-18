@@ -66,7 +66,11 @@ export class LocalTransport implements RoomTransport {
 
   private tick(): void {
     const before = this.room.version;
-    const result = applyCommand(this.room, { type: 'TICK', at: Date.now() });
+    const result = applyCommand(this.room, {
+      type: 'TICK',
+      at: Date.now(),
+      playerId: this.playerId,
+    });
     this.room = result.room;
     if (this.room.version !== before) this.emit();
   }

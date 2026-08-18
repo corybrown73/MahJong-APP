@@ -90,8 +90,6 @@ export const useRoom = create<RoomStore>((set, get) => {
   }
 
   function bannerFrom(view: RoomView): Banner | null {
-    const speed = useSettings.getState().speed;
-    const hold = motion.bannerHold * speedMultiplier[speed];
     for (const event of view.events) {
       if (event.at <= lastEventAt) continue;
       if (event.type !== 'GAME') continue;
@@ -114,7 +112,6 @@ export const useRoom = create<RoomStore>((set, get) => {
       }
       lastEventAt = Math.max(lastEventAt, event.at);
     }
-    void hold;
     return null;
   }
 

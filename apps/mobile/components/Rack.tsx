@@ -20,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 import type { Face, Tile as TileModel } from '@bahay/engine';
 import { useSettings } from '../store/settings';
 import { space } from '../theme/tokens';
-import { Tile, TILE_RATIO } from './Tile';
+import { Tile, TILE_RATIO, describeTile } from './Tile';
 import { usePalette } from './ui';
 
 const OVERLAP = 0.84; // tiles sit 16% over their neighbour
@@ -152,48 +152,39 @@ function RackTile({
     [count, index, onDragEnd, onMove],
   );
 
+  // Hold and the tile magnifies; keep holding and slide and it reorders
+  // instead. Two long-press gestures racing each other meant the magnifier
+  // never won — one gesture that hands over on movement always resolves.
+  const showing = useSharedValue(0);
+
   const pan = useMemo(
     () =>
       Gesture.Pan()
         .activateAfterLongPress(180)
         .onStart(() => {
           lifted.value = withTiming(1, { duration: 120 });
+          showing.value = 1;
           runOnJS(onDragStart)();
+          runOnJS(onMagnify)(tile);
         })
         .onUpdate((event) => {
           offsetX.value = event.translationX;
+          if (showing.value === 1 && Math.abs(event.translationX) > 6) {
+            showing.value = 0;
+            runOnJS(onMagnify)(null);
+          }
         })
         .onEnd((event) => {
           const slots = Math.round(event.translationX / step);
           offsetX.value = withTiming(0, { duration: 140 });
           lifted.value = withTiming(0, { duration: 140 });
+          if (showing.value === 1) {
+            showing.value = 0;
+            runOnJS(onMagnify)(null);
+          }
           runOnJS(drop)(slots);
         }),
-    [drop, lifted, offsetX, onDragStart, step],
-  );
-
-  const tap = useMemo(
-    () =>
-      Gesture.Tap()
-        .maxDuration(300)
-        .onEnd((_event, success) => {
-          if (success) runOnJS(onSelect)();
-        }),
-    [onSelect],
-  );
-
-  const longPress = useMemo(
-    () =>
-      Gesture.LongPress()
-        .minDuration(320)
-        .onStart(() => runOnJS(onMagnify)(tile))
-        .onEnd(() => runOnJS(onMagnify)(null)),
-    [onMagnify, tile],
-  );
-
-  const composed = useMemo(
-    () => Gesture.Simultaneous(Gesture.Exclusive(pan, longPress), tap),
-    [longPress, pan, tap],
+    [drop, lifted, offsetX, onDragStart, onMagnify, showing, step, tile],
   );
 
   const style = useAnimatedStyle(() => ({
@@ -202,7 +193,7 @@ function RackTile({
   }));
 
   return (
-    <GestureDetector gesture={composed}>
+    <GestureDetector gesture={pan}>
       <Animated.View
         style={[
           { marginLeft: index === 0 ? 0 : step - width, marginTop: 8 },
@@ -210,6 +201,11 @@ function RackTile({
           style,
         ]}
       >
+        {/*
+          A real button, not a bare gesture target: the rack is the control
+          that matters most, and it has to be reachable by keyboard and
+          announce itself to a screen reader like everything else on screen.
+        */}
         <Tile
           tile={tile}
           width={width}
@@ -218,6 +214,9 @@ function RackTile({
           joker={joker}
           boldEngraving={boldEngraving}
           reducedMotion={reducedMotion}
+          onPress={onSelect}
+          onLongPress={() => onMagnify(tile)}
+          accessibilityLabel={`${describeTile(tile)}${drawn ? ', just drawn' : ''}`}
         />
       </Animated.View>
     </GestureDetector>

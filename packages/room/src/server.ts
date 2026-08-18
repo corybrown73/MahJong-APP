@@ -86,7 +86,9 @@ export async function handleRoomRequest(
     const at = now();
     // Every request advances the table before it is answered, so whichever
     // client is awake keeps the AI seats moving. No cron, no idle server.
-    const ticked = applyCommand(stored.room, { type: 'TICK', at });
+    // The tick doubles as this player's heartbeat: a client that is still
+    // polling is a player who is still at the table.
+    const ticked = applyCommand(stored.room, { type: 'TICK', at, playerId });
     let room = ticked.room;
     let changed = ticked.changed;
     let error: string | undefined;

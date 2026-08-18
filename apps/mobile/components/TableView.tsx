@@ -55,6 +55,8 @@ export type TableViewProps = {
   /** Shown under the header: "waiting for Tita", a reconnect notice, and so on. */
   statusLine?: string | null;
   canDealNextHand: boolean;
+  /** The session has run its rounds: the win screen shows the final standing. */
+  sessionOver?: boolean;
   showHint: boolean;
 
   onSelectTile: (tileId: string) => void;
@@ -155,6 +157,7 @@ export function TableView(props: TableViewProps) {
         </Pressable>
         <Text style={[styles.headerText, { color: palette.capiz }]}>
           Round {view.round} · hand {view.handNumber}
+          {view.dealerSeat === yourSeat ? ' · you deal' : ''}
           {view.doublesActive ? ' · doubles' : ''}
           {view.ruleset.jaiAlai.enabled ? ` · pot ${view.pot.toFixed(2)}` : ''}
         </Text>
@@ -341,15 +344,20 @@ export function TableView(props: TableViewProps) {
         <WinScreen
           settlement={settlement}
           names={names}
-          winnerHand={
-            settlement.winner === null || settlement.winner !== yourSeat
-              ? null
-              : { concealed: view.hand, melds: view.melds }
-          }
+          // The hand is over, so the winner's tiles are face up for everyone
+          // — losing and never seeing what beat you teaches nothing.
+          winnerHand={settlement.winnerHand ?? null}
           onNextHand={props.onNextHand}
           onLeave={props.onLeave}
           nextHandLabel={props.canDealNextHand ? 'Next hand' : 'Waiting for the host…'}
           nextHandDisabled={!props.canDealNextHand}
+          finalStanding={
+            props.sessionOver
+              ? [...view.players]
+                  .sort((a, b) => b.chips - a.chips)
+                  .map((p) => ({ seat: p.seat, chips: p.chips }))
+              : null
+          }
         />
       ) : null}
 
@@ -471,7 +479,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
     paddingVertical: space.sm,
   },
-  sideSeat: { width: 78, justifyContent: 'center' },
+  // Wide enough for the longest personality name to sit on one line.
+  sideSeat: { width: 90, justifyContent: 'center' },
   coach: { paddingHorizontal: space.lg, paddingBottom: space.sm, gap: 2 },
   myMelds: {
     flexDirection: 'row',

@@ -50,6 +50,27 @@ export type PublicGameView = {
   pot: number;
 };
 
+/**
+ * The phase carries tiles that belong to one seat: the tile the player to act
+ * just drew, and the concealed tiles a claimer has committed to a call. Those
+ * must not travel to anyone else — a client that can read the wall draw as it
+ * happens can read the whole table.
+ */
+function redactPhase(phase: GameState['phase'], seat: SeatId): GameState['phase'] {
+  if (phase.name === 'AWAITING_DISCARD') {
+    return phase.seat === seat ? phase : { ...phase, justDrew: null };
+  }
+  if (phase.name === 'PENDING_CLAIMS') {
+    return {
+      ...phase,
+      claims: phase.claims.map((claim) =>
+        claim.seat === seat ? claim : { ...claim, tileIds: [] },
+      ),
+    };
+  }
+  return phase;
+}
+
 export function publicView(state: GameState, seat: SeatId): PublicGameView {
   const me = state.players[seat];
   return {
@@ -68,7 +89,7 @@ export function publicView(state: GameState, seat: SeatId): PublicGameView {
     discards: state.discards,
     joker: state.joker,
     ruleset: state.ruleset,
-    phase: state.phase,
+    phase: redactPhase(state.phase, seat),
     tilesRemaining: wallRemaining(state),
     dealerSeat: state.dealerSeat,
     round: state.round,

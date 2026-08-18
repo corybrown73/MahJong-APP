@@ -3,6 +3,7 @@ import {
   createGame,
   createRng,
   currentSeat,
+  isLastHand,
   legalActions,
   nextHand as engineNextHand,
   publicView,
@@ -10,6 +11,7 @@ import {
   seatsAwaitingClaimResponse,
   STANDARD,
   type Action,
+  type PublicGameView,
   type Ruleset,
   type SeatId,
   type Settlement,
@@ -34,10 +36,26 @@ export const CLAIM_WINDOW_MS = 4_000;
 export const DISCONNECT_GRACE_MS = 8_000;
 /** How long their seat is held before anyone else may take it. */
 export const SEAT_HOLD_MS = 90_000;
+/**
+ * How long a seat may go silent before the house plays it, even though the
+ * client never said goodbye. Clients poll roughly once a second, so anything
+ * this quiet has lost its network, been backgrounded, or closed — and a table
+ * must never sit waiting forever on a phone in somebody's pocket.
+ */
+export const IDLE_TIMEOUT_MS = 25_000;
+/** How long a silent host keeps the host's powers before they pass on. */
+export const HOST_HANDOVER_MS = 30_000;
 /** A beat before a player's own draw, so they see the tile arrive. */
 export const AUTO_DRAW_MS = 400;
 /** Keep the tail of the event log; clients only animate what just happened. */
 export const EVENT_LOG_LIMIT = 40;
+
+/**
+ * The order the house takes empty seats in. Three seats all called
+ * "Kapitbahay" makes "Kapitbahay called pong" meaningless, so each one gets a
+ * different neighbour.
+ */
+const HOUSE_ROTATION: Difficulty[] = ['tita', 'lolo', 'kapitbahay'];
 
 /** No O/0 or I/1 — these get read aloud over the phone. */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -47,6 +65,24 @@ export function generateRoomCode(seed: string): string {
   let code = '';
   for (let i = 0; i < 6; i++) code += CODE_ALPHABET[rng.int(CODE_ALPHABET.length)];
   return code;
+}
+
+/** Names at one table have to be tellable apart, even when they repeat. */
+function distinctName(base: string, taken: Set<string>): string {
+  if (!taken.has(base)) return base;
+  for (const suffix of [' II', ' III', ' IV']) {
+    if (!taken.has(base + suffix)) return base + suffix;
+  }
+  return base;
+}
+
+function namesAtTable(room: Room): Set<string> {
+  const taken = new Set<string>();
+  for (const seat of SEATS) {
+    const occupant = room.seats[seat];
+    if (occupant.kind !== 'open') taken.add(occupantName(occupant));
+  }
+  return taken;
 }
 
 export function occupantName(occupant: Occupant): string {
@@ -182,7 +218,8 @@ export function applyCommand(input: Room, command: RoomCommand): CommandResult {
       if (command.playerId !== room.hostId) return fail(input, 'only the host may fill a seat');
       if (room.status !== 'lobby') return fail(input, 'the hand has started');
       if (room.seats[command.seat].kind === 'human') return fail(input, 'someone is sitting there');
-      const name = PERSONALITIES[command.difficulty].name;
+      room.seats[command.seat] = { kind: 'open' };
+      const name = distinctName(PERSONALITIES[command.difficulty].name, namesAtTable(room));
       room.seats[command.seat] = { kind: 'ai', difficulty: command.difficulty, name };
       push(room, { type: 'SEAT_FILLED', seat: command.seat, name, at });
       return finish(room, at);
@@ -206,14 +243,20 @@ export function applyCommand(input: Room, command: RoomCommand): CommandResult {
     case 'START': {
       if (command.playerId !== room.hostId) return fail(input, 'only the host may start');
       if (room.status !== 'lobby') return fail(input, 'already started');
-      // Any seat still open when the host starts is filled by the house.
-      for (const seat of SEATS) {
-        if (room.seats[seat].kind === 'open') {
-          room.seats[seat] = {
-            kind: 'ai',
-            difficulty: 'kapitbahay',
-            name: PERSONALITIES.kapitbahay.name,
-          };
+      // Any seat still open when the host starts is filled by the house — each
+      // by a different neighbour, so the table can tell them apart.
+      {
+        const taken = namesAtTable(room);
+        let next = 0;
+        for (const seat of SEATS) {
+          if (room.seats[seat].kind !== 'open') continue;
+          const rotation = HOUSE_ROTATION.slice(next).concat(HOUSE_ROTATION.slice(0, next));
+          const difficulty =
+            rotation.find((d) => !taken.has(PERSONALITIES[d].name)) ?? rotation[0];
+          next = (next + 1) % HOUSE_ROTATION.length;
+          const name = distinctName(PERSONALITIES[difficulty].name, taken);
+          taken.add(name);
+          room.seats[seat] = { kind: 'ai', difficulty, name };
         }
       }
       room.game = createGame({ seed: `${room.seed}:1`, ruleset: cloneRuleset(room.ruleset) });
@@ -239,13 +282,20 @@ export function applyCommand(input: Room, command: RoomCommand): CommandResult {
     case 'NEXT_HAND': {
       if (command.playerId !== room.hostId) return fail(input, 'only the host deals the next hand');
       if (!room.game || room.game.phase.name !== 'HAND_OVER') return fail(input, 'the hand is not over');
+      if (isLastHand(room.game)) return fail(input, 'the session is over');
       room.game = engineNextHand(room.game);
       markPhase(room, at);
       return finish(room, at);
     }
 
-    case 'TICK':
+    case 'TICK': {
+      // The sender is demonstrably still here, whatever their last move was.
+      if (command.playerId) {
+        const seat = seatOf(room, command.playerId);
+        if (seat !== null) touch(room, seat, at);
+      }
       return finish(room, at, tick(room, at));
+    }
 
     default: {
       const never: never = command;
@@ -255,9 +305,36 @@ export function applyCommand(input: Room, command: RoomCommand): CommandResult {
 }
 
 function finish(room: Room, at: number, changedByTick = true): CommandResult {
+  ensureHost(room, at);
   recomputeTimers(room, at);
   if (!changedByTick) return { room, changed: false };
   return accept(room, at);
+}
+
+/**
+ * Somebody has to be able to start the hand, change the rules and deal the
+ * next one. If the host walks out of the lobby, or goes quiet long enough that
+ * the table is stuck waiting on them, the job passes to whoever is still here.
+ */
+function ensureHost(room: Room, at: number): void {
+  const seat = seatOf(room, room.hostId);
+  if (seat !== null) {
+    const occupant = room.seats[seat];
+    // Still seated and still talking: nothing to do.
+    if (occupant.kind === 'human' && occupant.connected && at - occupant.lastSeenAt <= HOST_HANDOVER_MS) {
+      return;
+    }
+    if (occupant.kind === 'human' && at - occupant.lastSeenAt <= HOST_HANDOVER_MS) return;
+  }
+  const heir =
+    SEATS.map((s) => room.seats[s]).find(
+      (o) => o.kind === 'human' && o.connected && at - o.lastSeenAt <= HOST_HANDOVER_MS,
+    ) ??
+    SEATS.map((s) => room.seats[s]).find((o) => o.kind === 'human');
+  if (!heir || heir.kind !== 'human') return;
+  if (heir.playerId === room.hostId) return;
+  room.hostId = heir.playerId;
+  push(room, { type: 'HOST_CHANGED', name: heir.name, at });
 }
 
 function canTakeSeat(room: Room, seat: SeatId, at: number): boolean {
@@ -343,7 +420,10 @@ function isCoveredByHouse(room: Room, seat: SeatId, at: number): boolean {
   const occupant = room.seats[seat];
   if (occupant.kind === 'ai') return true;
   if (occupant.kind === 'open') return true;
-  return !occupant.connected && at - occupant.lastSeenAt > DISCONNECT_GRACE_MS;
+  // Said goodbye: a short grace in case they are only switching networks.
+  if (!occupant.connected) return at - occupant.lastSeenAt > DISCONNECT_GRACE_MS;
+  // Never said goodbye, but has stopped talking to the table entirely.
+  return at - occupant.lastSeenAt > IDLE_TIMEOUT_MS;
 }
 
 function difficultyFor(room: Room, seat: SeatId): Difficulty {
@@ -479,11 +559,25 @@ export function roomView(room: Room, playerId: PlayerId): RoomView {
     // view is built for a seat they do not hold, then emptied of the hand.
     game: room.game ? redact(publicView(room.game, yourSeat ?? 0), yourSeat === null) : null,
     settlement,
+    sessionOver: room.game ? isLastHand(room.game) : false,
     claimDeadline: room.claimDeadline,
     events: room.events,
   };
 }
 
-function redact<T extends { hand: unknown[] }>(view: T, spectator: boolean): T {
-  return spectator ? { ...view, hand: [] } : view;
+/**
+ * A watcher's view is built for seat 0's chair, so it has to give back
+ * everything that chair would have known: the rack, the tile seat 0 just drew,
+ * and the tiles seat 0 committed to a call.
+ */
+function redact(view: PublicGameView, spectator: boolean): PublicGameView {
+  if (!spectator) return view;
+  const phase = view.phase;
+  const scrubbed =
+    phase.name === 'AWAITING_DISCARD'
+      ? { ...phase, justDrew: null }
+      : phase.name === 'PENDING_CLAIMS'
+        ? { ...phase, claims: phase.claims.map((claim) => ({ ...claim, tileIds: [] })) }
+        : phase;
+  return { ...view, hand: [], phase: scrubbed };
 }

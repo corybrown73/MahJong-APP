@@ -25,6 +25,11 @@ type Props = {
   /** Online: only the host deals, so everyone else waits and is told so. */
   nextHandLabel?: string;
   nextHandDisabled?: boolean;
+  /**
+   * The session has run its rounds. There is no next hand — the table shows
+   * where everyone finished instead.
+   */
+  finalStanding?: { seat: SeatId; chips: number }[] | null;
 };
 
 export function WinScreen({
@@ -35,6 +40,7 @@ export function WinScreen({
   onLeave,
   nextHandLabel = 'Next hand',
   nextHandDisabled = false,
+  finalStanding = null,
 }: Props) {
   const { speed, reducedMotion } = useSettings();
   const [showHand, setShowHand] = useState(false);
@@ -56,9 +62,17 @@ export function WinScreen({
 
   const drawn = settlement.winner === null;
   const title = drawn ? 'WALANG MANALO' : settlement.winType === 'bisaklat' ? 'BISAKLAT' : 'MAHJONGG';
+  // Two seats can win one discard when the table plays multiple winners, so
+  // the header names everyone who was paid rather than just the first.
+  const coWinners = settlement.coWinners ?? [];
+  const winnerNames = [settlement.winner, ...coWinners.map((s) => s.winner)]
+    .filter((seat): seat is SeatId => seat !== null)
+    .map((seat) => names[seat]);
   const subtitle = drawn
     ? 'The wall ran out — nobody pays'
-    : `${names[settlement.winner as SeatId]} wins the hand`;
+    : coWinners.length > 0
+      ? `${winnerNames.join(' and ')} both win the hand`
+      : `${winnerNames[0]} wins the hand`;
 
   let line = 0;
   const nextLine = () => visibleLines >= ++line;
@@ -120,12 +134,40 @@ export function WinScreen({
                 <View key={`${transfer.from}-${transfer.to}`} style={styles.payRow}>
                   <Text style={styles.payLabel}>
                     {transfer.from === 0 ? 'You pay' : `${names[transfer.from]} pays`}
+                    {coWinners.length > 0 ? ` ${names[transfer.to]}` : ''}
                   </Text>
                   <Text style={styles.payValue}>−{transfer.amount.toFixed(2)}</Text>
                 </View>
               ))}
             </Animated.View>
           ) : null}
+
+          {coWinners.map((other) =>
+            other.winner === null ? null : (
+              <View key={other.winner} style={{ marginTop: space.md, gap: 4 }}>
+                <Text style={styles.subtitle}>{names[other.winner]}</Text>
+                {other.items.map((item) => (
+                  <View key={item.ambition + item.label} style={styles.row}>
+                    <Text style={styles.rowLabel}>{item.label}</Text>
+                    <Text style={styles.rowValue}>
+                      {item.value >= 0 ? '+' : '−'}
+                      {Math.abs(item.value).toFixed(2)}
+                    </Text>
+                  </View>
+                ))}
+                {other.multipliers.map((multiplier) => (
+                  <View key={multiplier.label} style={styles.row}>
+                    <Text style={styles.rowLabel}>{multiplier.label}</Text>
+                    <Text style={styles.rowValue}>×{multiplier.factor}</Text>
+                  </View>
+                ))}
+                <View style={[styles.row, styles.total]}>
+                  <Text style={[styles.rowLabel, styles.totalText]}>Total</Text>
+                  <Text style={[styles.rowValue, styles.totalValue]}>{other.total.toFixed(2)}</Text>
+                </View>
+              </View>
+            ),
+          )}
 
           {settlement.markerAward ? (
             <View style={{ marginTop: space.md, gap: 4 }}>
@@ -185,6 +227,28 @@ export function WinScreen({
             </View>
           ) : null}
 
+          {finalStanding ? (
+            <View style={{ marginTop: space.lg, gap: 4 }}>
+              <Text style={styles.sectionLabel}>THAT IS THE GAME</Text>
+              {finalStanding.map((entry, index) => (
+                <View key={entry.seat} style={styles.payRow}>
+                  <Text style={styles.payLabel}>
+                    {index + 1}. {names[entry.seat]}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.payValue,
+                      { color: index === 0 ? colors.vermilion : undefined },
+                    ]}
+                  >
+                    {entry.chips >= 0 ? '+' : '−'}
+                    {Math.abs(entry.chips).toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           <View style={styles.buttons}>
             {winnerHand ? (
               <Button
@@ -194,14 +258,16 @@ export function WinScreen({
                 style={{ flex: 1 }}
               />
             ) : null}
-            <Button
-              label={nextHandLabel}
-              onPress={onNextHand}
-              disabled={nextHandDisabled}
-              style={{ flex: 1 }}
-            />
+            {finalStanding ? null : (
+              <Button
+                label={nextHandLabel}
+                onPress={onNextHand}
+                disabled={nextHandDisabled}
+                style={{ flex: 1 }}
+              />
+            )}
           </View>
-          <Button label="Leave the table" tone="ghost" onPress={onLeave} />
+          <Button label={finalStanding ? 'Done' : 'Leave the table'} tone="ghost" onPress={onLeave} />
         </ScrollView>
       </View>
     </View>

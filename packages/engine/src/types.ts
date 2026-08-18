@@ -109,6 +109,18 @@ export type Settlement = {
   markerAward?: { seat: SeatId; markers: number; reason: string };
   /** Jai alái: set when this hand's markers reached the target and took the pot. */
   potWin?: { seat: SeatId; amount: number };
+  /**
+   * Extra winners, when the table plays `multipleWinnersOnDiscard` and more
+   * than one seat called tódas on the same discard. Each carries its own
+   * items and transfers; they are already applied. Never nested further.
+   */
+  coWinners?: Settlement[];
+  /**
+   * The winning hand, face up. The hand is over, so it belongs to the whole
+   * table: seeing what beat you is how anyone learns this game, and it is the
+   * one moment a player's tiles stop being private.
+   */
+  winnerHand?: { concealed: Tile[]; melds: Meld[] };
 };
 
 export type ImmediatePayout = {

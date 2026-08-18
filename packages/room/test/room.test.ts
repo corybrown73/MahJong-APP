@@ -329,13 +329,25 @@ describe('the heartbeat drives the table', () => {
     expect(humanPasses(room)).toBeGreaterThan(before);
   });
 
-  it('never discards for a connected human', () => {
+  it('never discards for a human who is still at the table', () => {
     let room = started();
-    // Seat 0 is the máno and must discard. No amount of ticking may do it.
+    // Seat 0 is the máno and must discard. No amount of ticking may do it,
+    // for as long as their client keeps checking in.
     expect(room.game!.phase).toMatchObject({ name: 'AWAITING_DISCARD', seat: 0 });
-    room = run(room, { type: 'TICK', at: T0 + 10 * 60_000 });
+    for (let at = T0; at < T0 + 10 * 60_000; at += 1_000) {
+      room = run(room, { type: 'TICK', at, playerId: 'p-host' });
+    }
     expect(room.game!.phase).toMatchObject({ name: 'AWAITING_DISCARD', seat: 0 });
     expect(room.game!.discards).toHaveLength(0);
+  });
+
+  it('plays for a human whose client has stopped checking in', () => {
+    let room = started();
+    expect(room.game!.phase).toMatchObject({ name: 'AWAITING_DISCARD', seat: 0 });
+    // No heartbeat from seat 0 — a closed app, a dead battery, a lost signal
+    // with no chance to say goodbye. The table must not sit there forever.
+    room = run(room, { type: 'TICK', at: T0 + 60_000 });
+    expect(room.game!.discards.length).toBeGreaterThan(0);
   });
 });
 

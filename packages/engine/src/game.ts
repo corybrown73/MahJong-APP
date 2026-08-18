@@ -288,17 +288,39 @@ export function createGame(options: NewGameOptions): GameState {
     });
   }
 
-  state.phase = { name: 'AWAITING_DISCARD', seat: dealerSeat, justDrew: null };
+  // The máno's 17th tile counts as drawn: a kang may be declared on it, and a
+  // win with it is a búnot, exactly as if it had come off the wall on turn one.
+  const opening = mano.concealed.length > 16 ? mano.concealed[mano.concealed.length - 1] : null;
+  state.phase = { name: 'AWAITING_DISCARD', seat: dealerSeat, justDrew: opening };
   return state;
 }
 
 function endHand(state: GameState, ctx: Parameters<typeof settle>[0]): GameState {
-  const settlement = settle({ ...ctx, state });
+  return endHandMulti(state, [ctx]);
+}
+
+/**
+ * End the hand, paying every winner. All but the first are carried on the
+ * primary settlement as `coWinners`, so a single-winner hand — which is every
+ * hand unless the table plays multipleWinnersOnDiscard — is unchanged.
+ */
+function endHandMulti(state: GameState, contexts: Parameters<typeof settle>[0][]): GameState {
+  const settlements = contexts.map((ctx) => settle({ ...ctx, state }));
+  const settlement = settlements[0];
+  if (settlements.length > 1) {
+    settlement.coWinners = settlements.slice(1);
+    // The primary settlement's `transfers` is what the hand actually moved, so
+    // anything totalling chips reads one list and gets the whole hand. Each
+    // co-winner keeps its own transfers for the per-winner breakdown.
+    settlement.transfers = settlements.flatMap((s) => s.transfers);
+  }
   for (const transfer of settlement.transfers) {
-    state.players[transfer.from].chips = round2(state.players[transfer.from].chips - transfer.amount);
+    state.players[transfer.from].chips = round2(
+      state.players[transfer.from].chips - transfer.amount,
+    );
     state.players[transfer.to].chips = round2(state.players[transfer.to].chips + transfer.amount);
   }
-  awardMarkers(state, settlement);
+  for (const won of settlements) awardMarkers(state, won);
   state.phase = { name: 'HAND_OVER', settlement };
   state.events.push({ type: 'HAND_OVER', settlement });
   return state;
@@ -429,6 +451,13 @@ function completeSagasa(state: GameState, seat: SeatId, face: Face): void {
   payImmediate(state, seat, 'sagasa');
   const gift = drawGift(state, seat);
   state.pendingKang = null;
+  // A flower chain can run the wall off its end mid-replacement. There is no
+  // tile to give, so the hand is exhausted — never leave a short hand on the
+  // table with a discard still owed.
+  if (!gift) {
+    endHandDrawn(state);
+    return;
+  }
   state.phase = { name: 'AWAITING_DISCARD', seat, justDrew: gift };
 }
 
@@ -444,19 +473,36 @@ function resolvePendingClaims(state: GameState): void {
 
   // Robbing the kang: only a tódas claim matters here.
   if (phase.robbingKang) {
-    const robber = winners.find((w) => w.call === 'todas');
-    if (robber) {
-      const winner = state.players[robber.seat];
-      const before = [...winner.concealed];
-      winner.concealed.push(phase.discard);
-      endHand(state, {
+    const robbers = winners.filter((w) => w.call === 'todas');
+    if (robbers.length > 0) {
+      // The tile leaves the declarer's hand — it never became part of the
+      // kang, and leaving a copy behind would put one tile in two hands.
+      const declarer = state.players[phase.robbingKang.seat];
+      removeTiles(declarer, [phase.discard.id]);
+      state.pendingKang = null;
+      endHandMulti(
         state,
-        winner: robber.seat,
-        winType: 'discard',
-        discarder: phase.robbingKang.seat,
-        winningTile: phase.discard,
-        concealedBefore: before,
-      });
+        robbers.map((robber) => {
+          const winner = state.players[robber.seat];
+          const before = [...winner.concealed];
+          winner.concealed.push(phase.discard);
+          state.events.push({
+            type: 'CALLED',
+            seat: robber.seat,
+            call: 'todas',
+            tile: phase.discard,
+            from: phase.robbingKang!.seat,
+          });
+          return {
+            state,
+            winner: robber.seat,
+            winType: 'discard' as const,
+            discarder: phase.robbingKang!.seat,
+            winningTile: phase.discard,
+            concealedBefore: before,
+          };
+        }),
+      );
       return;
     }
     completeSagasa(state, phase.robbingKang.seat, phase.robbingKang.face);
@@ -468,30 +514,40 @@ function resolvePendingClaims(state: GameState): void {
     return;
   }
 
-  const claim = winners[0];
-  const claimer = state.players[claim.seat];
-
-  if (claim.call === 'todas') {
-    const before = [...claimer.concealed];
-    claimer.concealed.push(phase.discard);
+  // `resolveClaims` returns more than one winner only when the table plays
+  // multipleWinnersOnDiscard and two seats called tódas on the same tile.
+  // Both hands are complete on that tile and both get paid; physically only
+  // one tile exists, but every hand is shown as it was declared.
+  if (winners[0].call === 'todas') {
     markDiscardClaimed(state);
-    state.events.push({
-      type: 'CALLED',
-      seat: claim.seat,
-      call: 'todas',
-      tile: phase.discard,
-      from: phase.from,
-    });
-    endHand(state, {
+    endHandMulti(
       state,
-      winner: claim.seat,
-      winType: 'discard',
-      discarder: phase.from,
-      winningTile: phase.discard,
-      concealedBefore: before,
-    });
+      winners.map((claim) => {
+        const claimer = state.players[claim.seat];
+        const before = [...claimer.concealed];
+        claimer.concealed.push(phase.discard);
+        state.events.push({
+          type: 'CALLED',
+          seat: claim.seat,
+          call: 'todas',
+          tile: phase.discard,
+          from: phase.from,
+        });
+        return {
+          state,
+          winner: claim.seat,
+          winType: 'discard' as const,
+          discarder: phase.from,
+          winningTile: phase.discard,
+          concealedBefore: before,
+        };
+      }),
+    );
     return;
   }
+
+  const claim = winners[0];
+  const claimer = state.players[claim.seat];
 
   const taken = removeTiles(claimer, claim.tileIds);
   markDiscardClaimed(state);
@@ -529,6 +585,10 @@ function resolvePendingClaims(state: GameState): void {
   if (claim.call === 'kang') {
     payImmediate(state, claim.seat, 'openKang');
     gift = drawGift(state, claim.seat);
+    if (!gift) {
+      endHandDrawn(state);
+      return;
+    }
   }
 
   state.phase = { name: 'AWAITING_DISCARD', seat: claim.seat, justDrew: gift };
@@ -626,6 +686,9 @@ function apply(state: GameState, action: Action): void {
       if (phase.name !== 'AWAITING_DISCARD' || phase.seat !== action.seat) {
         throw new Error('illegal SECRET_KANG');
       }
+      // A kang is declared on your own turn, after drawing — never on the back
+      // of a chow or pung you just claimed.
+      if (!phase.justDrew) throw new Error('illegal SECRET_KANG: not after a draw');
       const face: Face = { suit: action.suit, rank: action.rank };
       const player = state.players[action.seat];
       if (countFace(player.concealed, face) < 4) throw new Error('illegal SECRET_KANG: need four');
@@ -640,6 +703,10 @@ function apply(state: GameState, action: Action): void {
       state.events.push({ type: 'KANG_DECLARED', seat: action.seat, variant: 'secret', face });
       payImmediate(state, action.seat, 'secretKang');
       const gift = drawGift(state, action.seat);
+      if (!gift) {
+        endHandDrawn(state);
+        return;
+      }
       state.phase = { name: 'AWAITING_DISCARD', seat: action.seat, justDrew: gift };
       return;
     }
@@ -648,6 +715,7 @@ function apply(state: GameState, action: Action): void {
       if (phase.name !== 'AWAITING_DISCARD' || phase.seat !== action.seat) {
         throw new Error('illegal SAGASA');
       }
+      if (!phase.justDrew) throw new Error('illegal SAGASA: not after a draw');
       const face: Face = { suit: action.suit, rank: action.rank };
       if (!canSagasa(state, action.seat, face)) throw new Error('illegal SAGASA');
 
@@ -693,15 +761,34 @@ function apply(state: GameState, action: Action): void {
         throw new Error('illegal DECLARE_TODAS: hand is not complete');
       }
       // Any tile taken from the wall — draw wall or flower wall — is a búnot.
-      const winningTile = phase.justDrew ?? player.concealed[player.concealed.length - 1];
-      const before = player.concealed.filter((t) => t.id !== winningTile.id);
+      // Reaching a discard turn without having drawn means the hand was
+      // completed by the tile just claimed, which is a talbog off its
+      // discarder. (That happens when a player claims a chow or pung on a tile
+      // they could have won on, and the hand is still complete afterwards.)
+      if (phase.justDrew) {
+        const winningTile = phase.justDrew;
+        const before = player.concealed.filter((t) => t.id !== winningTile.id);
+        endHand(state, {
+          state,
+          winner: action.seat,
+          winType: 'bunot',
+          discarder: null,
+          winningTile,
+          concealedBefore: before,
+        });
+        return;
+      }
+
+      const claimed = state.discards[state.discards.length - 1] ?? null;
       endHand(state, {
         state,
         winner: action.seat,
-        winType: 'bunot',
-        discarder: null,
-        winningTile,
-        concealedBefore: before,
+        winType: 'discard',
+        discarder: claimed ? claimed.from : null,
+        winningTile: claimed ? claimed.tile : null,
+        // The winning tile is locked inside an exposed meld, so there is no
+        // "hand before the winning tile" to read a back-to-back wait from.
+        concealedBefore: null,
       });
       return;
     }
@@ -774,7 +861,9 @@ export function legalActions(state: GameState, seat: SeatId): Action[] {
         out.push({ type: 'DECLARE_TODAS', seat });
       }
 
-      if (!wallExhausted(state)) {
+      // Kang declarations belong to a drawn turn, not to the discard you owe
+      // after claiming a chow or pung.
+      if (!wallExhausted(state) && phase.justDrew) {
         for (const face of concealedKangFaces(player.concealed)) {
           out.push({ type: 'SECRET_KANG', seat, suit: face.suit, rank: face.rank });
         }
@@ -839,7 +928,12 @@ export function tilesRemaining(state: GameState): number {
  * bisaklát); on any other outcome it passes counterclockwise. On a draw the
  * `drawEndsDealership` flag decides.
  */
-export function nextHand(state: GameState): GameState {
+/**
+ * Who deals next and which round that lands in. The máno keeps the deal by
+ * winning — and, unless the table says otherwise, by a draw — and the round
+ * turns over each time the deal comes back round to seat 0.
+ */
+function nextDeal(state: GameState): { dealerSeat: SeatId; round: number } {
   const phase = state.phase;
   if (phase.name !== 'HAND_OVER') throw new Error('hand is not over');
   const settlement = phase.settlement;
@@ -853,6 +947,22 @@ export function nextHand(state: GameState): GameState {
 
   const dealerSeat = dealerRetains ? state.dealerSeat : nextSeat(state.dealerSeat);
   const round = dealerRetains || dealerSeat !== 0 ? state.round : state.round + 1;
+  return { dealerSeat, round };
+}
+
+/**
+ * Is this the last hand? A session runs a fixed number of rounds, and the
+ * table needs to know before it offers another deal — otherwise "rounds per
+ * game" is a setting that changes nothing.
+ */
+export function isLastHand(state: GameState): boolean {
+  if (state.phase.name !== 'HAND_OVER') return false;
+  if (state.ruleset.roundsPerGame <= 0) return false;
+  return nextDeal(state).round > state.ruleset.roundsPerGame;
+}
+
+export function nextHand(state: GameState): GameState {
+  const { dealerSeat, round } = nextDeal(state);
 
   return createGame({
     seed: state.seed,
