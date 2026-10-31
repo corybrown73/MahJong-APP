@@ -7,12 +7,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#14392B",
+    "backgroundColor": "#0C0907",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#14392B"
+      "backgroundColor": "#0C0907"
     },
     "ios": {
       "supportsTablet": true,
@@ -21,7 +21,7 @@
     "android": {
       "package": "com.bahay.mahjong",
       "adaptiveIcon": {
-        "backgroundColor": "#14392B",
+        "backgroundColor": "#0C0907",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },

@@ -1,36 +1,35 @@
 /**
- * A physical tile.
+ * A physical tile, with its states.
  *
  * Every state is distinguishable without relying on colour — elevation,
  * outline and opacity all carry the signal — so the high-contrast and
  * colourblind paths still read correctly.
  */
 
-import React, { useEffect } from 'react';
+import React, { memo, useEffect } from 'react';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withSequence,
   withTiming,
-  cancelAnimation,
 } from 'react-native-reanimated';
 import type { Tile as TileModel } from '@bahay/engine';
-import { colors, radius, type Palette } from '../theme/tokens';
-import { TileFace } from './TileFace';
+import { colors, type Palette } from '../theme/tokens';
+import { TileArt } from './TileFace';
 
-export const TILE_RATIO = 83 / 62; // height : width
-/** The bevel along the bottom edge, which eats into the tile's content box. */
-export const TILE_EDGE = 3;
+/** Height : width, including the band of thickness under the face. */
+export const TILE_RATIO = 1.46;
 
 export type TileState = {
   selected?: boolean;
-  /** Legal to call — a soft gold pulse. */
+  /** Legal to call — a soft brass pulse. */
   legal?: boolean;
   /** Discarded or otherwise out of play. */
   dead?: boolean;
-  /** All four copies of the joker face shimmer along the top edge. */
+  /** All four copies of the joker face carry a brass jewel in the corner. */
   joker?: boolean;
   /** Just drawn: sits slightly apart from the rack. */
   drawn?: boolean;
@@ -43,18 +42,21 @@ type Props = TileState & {
   palette?: Palette;
   boldEngraving?: boolean;
   reducedMotion?: boolean;
+  /** Drop the cast shadow — for tiles lying flat and small on the felt. */
+  flat?: boolean;
   onPress?: () => void;
   onLongPress?: () => void;
   style?: ViewStyle;
   accessibilityLabel?: string;
 };
 
-export function Tile({
+export const Tile = memo(function Tile({
   tile,
   width,
   palette = colors,
   boldEngraving = false,
   reducedMotion = false,
+  flat = false,
   selected,
   legal,
   dead,
@@ -89,8 +91,7 @@ export function Tile({
   }, [selected, reducedMotion, lift]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -10 * lift.value }],
-    shadowOpacity: 0.35 + 0.25 * lift.value + 0.2 * pulse.value,
+    transform: [{ translateY: -Math.round(width * 0.38) * lift.value }],
   }));
 
   const glowStyle = useAnimatedStyle(() => ({ opacity: 0.25 + 0.6 * pulse.value }));
@@ -98,16 +99,13 @@ export function Tile({
   const body = (
     <Animated.View
       style={[
-        styles.tile,
         {
           width,
           height,
-          borderRadius: radius.tile,
-          backgroundColor: faceDown ? palette.tileBack : palette.tileFace,
-          borderBottomColor: faceDown ? palette.tileBackDark : palette.tileShadow,
-          opacity: dead ? 0.7 : 1,
+          opacity: dead ? 0.72 : 1,
+          borderRadius: width * 0.14,
         },
-        selected && { borderColor: palette.gold, borderWidth: 2 },
+        flat ? styles.flatShadow : styles.shadow,
         animatedStyle,
         style,
       ]}
@@ -117,27 +115,38 @@ export function Tile({
           pointerEvents="none"
           style={[
             styles.glow,
-            { borderRadius: radius.tile + 2, borderColor: palette.goldGlow },
+            { borderRadius: width * 0.18, borderColor: palette.goldGlow },
             glowStyle,
           ]}
         />
       ) : null}
 
-      {faceDown ? (
-        <View style={[styles.backInset, { borderColor: 'rgba(255,255,255,0.14)' }]} />
-      ) : (
-        <TileFace
-          tile={tile}
-          width={width}
-          // The bevel is inside the box, so the face gets what is left.
-          height={height - TILE_EDGE}
-          palette={palette}
-          bold={boldEngraving}
-        />
-      )}
+      <TileArt
+        tile={tile}
+        width={width}
+        height={height}
+        palette={palette}
+        bold={boldEngraving}
+        faceDown={faceDown}
+        highlight={selected}
+      />
 
       {joker && !faceDown ? (
-        <View style={[styles.jokerBar, { backgroundColor: palette.goldGlow }]} />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.jewel,
+            {
+              width: Math.max(5, width * 0.2),
+              height: Math.max(5, width * 0.2),
+              borderRadius: width,
+              top: width * 0.1,
+              right: width * 0.1,
+              backgroundColor: palette.gold,
+              borderColor: palette.goldGlow,
+            },
+          ]}
+        />
       ) : null}
     </Animated.View>
   );
@@ -159,7 +168,7 @@ export function Tile({
       {body}
     </Pressable>
   );
-}
+});
 
 export function describeTile(tile: TileModel): string {
   if (tile.kind === 'flower') return `flower, ${tile.face}`;
@@ -168,14 +177,19 @@ export function describeTile(tile: TileModel): string {
 }
 
 const styles = StyleSheet.create({
-  tile: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: TILE_EDGE,
+  shadow: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 4,
     elevation: 4,
+  },
+  flatShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 1.5,
+    elevation: 1,
   },
   glow: {
     position: 'absolute',
@@ -185,22 +199,12 @@ const styles = StyleSheet.create({
     bottom: -3,
     borderWidth: 2.5,
   },
-  backInset: {
+  jewel: {
     position: 'absolute',
-    top: 6,
-    left: 5,
-    right: 5,
-    bottom: 6,
-    borderRadius: 4,
-    borderWidth: 1.5,
-  },
-  jokerBar: {
-    position: 'absolute',
-    top: 2,
-    left: 6,
-    right: 6,
-    height: 3,
-    borderRadius: 2,
-    opacity: 0.9,
+    borderWidth: 1,
+    shadowColor: '#F0C97A',
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
   },
 });

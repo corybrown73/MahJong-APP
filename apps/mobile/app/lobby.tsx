@@ -1,26 +1,35 @@
 /**
- * The lobby — four chairs and a code to read out.
+ * The lobby — a code to read out, and four chairs around the table.
+ *
+ * Tap a chair to choose it. An open one offers "Sit here"; the host can also
+ * seat one of the house's players in it, or leave it open for family still on
+ * their way.
  */
 
-import React, { useEffect } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
 import type { SeatId } from '@bahay/engine';
 import type { Difficulty } from '@bahay/ai';
-import { Body, Button, Card, Divider, Muted, Screen, Term, Title, usePalette } from '../components/ui';
-import { fontSize, radius, space, type } from '../theme/tokens';
+import { ChairPicker } from '../components/ChairPicker';
+import { Body, Button, Card, Muted, Screen, Term, Title, usePalette } from '../components/ui';
+import { fontSize, onBrass, radius, space, type } from '../theme/tokens';
 import { useRoom } from '../store/room';
 
-const AI_CHOICES: { id: Difficulty; label: string }[] = [
-  { id: 'tita', label: 'Tita' },
-  { id: 'kapitbahay', label: 'Kapitbahay' },
-  { id: 'lolo', label: 'Lolo' },
+const AI_CHOICES: { id: Difficulty; label: string; blurb: string }[] = [
+  { id: 'tita', label: 'Tita', blurb: 'chases the big hands' },
+  { id: 'kapitbahay', label: 'Kapitbahay', blurb: 'plays it straight' },
+  { id: 'lolo', label: 'Lolo', blurb: 'patient, and hard to beat' },
 ];
+
+const WIND_NAMES = ['East', 'South', 'West', 'North'] as const;
 
 export default function LobbyScreen() {
   const palette = usePalette();
   const room = useRoom();
   const view = room.view;
+  const { width } = useWindowDimensions();
+  const [chosen, setChosen] = useState<SeatId | null>(null);
 
   // The host starts the hand; everyone else is carried into it.
   useEffect(() => {
@@ -30,7 +39,7 @@ export default function LobbyScreen() {
   if (!view) {
     return (
       <Screen>
-        <Button label="◀ Back" tone="ghost" onPress={() => router.replace('/play')} />
+        <Button label="‹ Back" tone="ghost" onPress={() => router.replace('/play')} />
         <Title>Opening the table…</Title>
         <Muted>Connecting.</Muted>
       </Screen>
@@ -39,146 +48,161 @@ export default function LobbyScreen() {
 
   const youAreHost = view.seats.some((seat) => seat.isYou && seat.isHost);
   const humans = view.seats.filter((seat) => seat.kind === 'human').length;
+  const pickerWidth = Math.min(width - space.xl * 2, 380);
+  const focus = chosen === null ? null : view.seats[chosen];
+  const canSit = !!focus && focus.kind !== 'human';
 
   return (
     <Screen>
-      <Button
-        label="◀ Leave the table"
-        tone="ghost"
-        onPress={() => {
-          room.leave();
-          router.replace('/');
-        }}
-      />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Pressable
+          onPress={() => {
+            room.leave();
+            router.replace('/');
+          }}
+          accessibilityRole="button"
+          hitSlop={8}
+        >
+          <Text style={{ fontFamily: type.bodyMedium, fontSize: fontSize.small, color: palette.capiz, opacity: 0.85 }}>
+            ‹ Leave the table
+          </Text>
+        </Pressable>
+        {room.status.connection !== 'online' ? (
+          <Text style={{ fontFamily: type.label, fontSize: fontSize.micro, color: palette.led }}>
+            {room.status.connection === 'offline' ? 'RECONNECTING…' : 'CONNECTING…'}
+          </Text>
+        ) : null}
+      </View>
 
-      <Card style={{ alignItems: 'center', gap: 4 }}>
-        <Term>Room code</Term>
+      <View style={{ alignItems: 'center', gap: 2 }}>
+        <Term>Table code</Term>
         <Text
           selectable
-          accessibilityLabel={`Room code ${view.code.split('').join(' ')}`}
+          accessibilityLabel={`Table code ${view.code.split('').join(' ')}`}
           style={{
             fontFamily: type.display,
             fontSize: 44,
-            letterSpacing: 10,
-            color: palette.gold,
+            letterSpacing: 9,
+            color: palette.goldGlow,
           }}
         >
           {view.code}
         </Text>
         <Muted style={{ fontSize: fontSize.small, textAlign: 'center' }}>
           {room.transport?.kind === 'local'
-            ? 'A practice table on this phone — the house fills every other seat.'
-            : 'Read this out. Anyone who types it in takes the next open chair.'}
+            ? 'A practice table on this phone — the house takes any chair you leave.'
+            : 'Read it out. Whoever types it in pulls up a chair.'}
         </Muted>
-        {room.status.connection !== 'online' ? (
-          <Muted style={{ fontSize: fontSize.small, color: palette.vermilion }}>
-            {room.status.connection === 'offline' ? 'Reconnecting…' : 'Connecting…'}
-          </Muted>
-        ) : null}
-      </Card>
+      </View>
 
-      <Term>The table</Term>
-      {view.seats.map((seat) => (
-        <Card key={seat.seat}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Body>
-                {seat.name}
-                {seat.isYou ? ' · you' : ''}
-                {seat.isHost ? ' · host' : ''}
-              </Body>
-              <Muted style={{ fontSize: fontSize.small }}>
-                {seat.kind === 'human'
-                  ? seat.connected
-                    ? 'Seated'
-                    : 'Lost signal — seat held'
-                  : seat.kind === 'ai'
-                    ? 'The house'
-                    : 'Waiting for someone'}
-              </Muted>
-            </View>
-            {seat.kind === 'open' && !seat.isYou && view.yourSeat !== seat.seat ? (
-              <Pressable
-                onPress={() => room.sit(seat.seat as SeatId)}
-                accessibilityRole="button"
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: space.md,
-                  borderRadius: radius.pill,
-                  backgroundColor: 'rgba(255,255,255,0.08)',
-                }}
-              >
-                <Text style={{ fontFamily: type.bodyMedium, fontSize: fontSize.small, color: palette.capiz }}>
-                  Sit here
-                </Text>
-              </Pressable>
+      <View style={{ alignItems: 'center', gap: space.sm }}>
+        <Term>Choose your chair</Term>
+        <ChairPicker
+          width={pickerWidth}
+          seats={view.seats}
+          selected={chosen}
+          onSelect={setChosen}
+          palette={palette}
+        />
+      </View>
+
+      {focus ? (
+        <Card style={{ gap: space.md }}>
+          <View style={{ gap: 2 }}>
+            <Term>{WIND_NAMES[focus.seat]} chair</Term>
+            <Body>
+              {focus.kind === 'open'
+                ? 'Empty — nobody has pulled it up yet.'
+                : focus.isYou
+                  ? 'This is your chair.'
+                  : focus.kind === 'ai'
+                    ? `${focus.name} is keeping it warm for the house.`
+                    : `${focus.name}${focus.connected ? ' is sitting here.' : ' lost signal — the chair is held.'}`}
+            </Body>
+            {focus.seat === 0 ? (
+              <Muted style={{ fontSize: fontSize.small }}>East deals the first hand.</Muted>
             ) : null}
           </View>
 
-          {youAreHost && seat.kind !== 'human' ? (
-            <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
-              {AI_CHOICES.map((choice) => (
-                <Pressable
-                  key={choice.id}
-                  onPress={() => room.fillSeat(seat.seat as SeatId, choice.id)}
-                  accessibilityRole="button"
-                  style={{
-                    paddingVertical: 7,
-                    paddingHorizontal: space.md,
-                    borderRadius: radius.pill,
-                    backgroundColor:
-                      seat.kind === 'ai' && seat.name === choice.label
-                        ? palette.gold
-                        : 'rgba(255,255,255,0.07)',
-                  }}
-                >
-                  <Text
+          {canSit ? (
+            <Button
+              label="Sit here"
+              onPress={() => {
+                room.sit(focus.seat as SeatId);
+              }}
+            />
+          ) : null}
+
+          {youAreHost && focus.kind !== 'human' ? (
+            <View style={{ gap: space.sm }}>
+              <Muted style={{ fontSize: fontSize.small }}>Or seat the house here:</Muted>
+              <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
+                {AI_CHOICES.map((choice) => {
+                  const active = focus.kind === 'ai' && focus.name.startsWith(choice.label);
+                  return (
+                    <Pressable
+                      key={choice.id}
+                      onPress={() => room.fillSeat(focus.seat as SeatId, choice.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Seat ${choice.label}, who ${choice.blurb}`}
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: space.md,
+                        borderRadius: radius.pill,
+                        borderWidth: 1,
+                        borderColor: active ? palette.goldGlow : 'rgba(201,161,90,0.3)',
+                        backgroundColor: active ? palette.gold : 'rgba(255,236,214,0.04)',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: type.label,
+                          fontSize: fontSize.small,
+                          color: active ? onBrass : palette.capiz,
+                        }}
+                      >
+                        {choice.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {focus.kind === 'ai' ? (
+                  <Pressable
+                    onPress={() => room.openSeat(focus.seat as SeatId)}
+                    accessibilityRole="button"
                     style={{
-                      fontFamily: type.bodyMedium,
-                      fontSize: fontSize.small,
-                      color:
-                        seat.kind === 'ai' && seat.name === choice.label ? '#2A1D07' : palette.capiz,
+                      paddingVertical: 8,
+                      paddingHorizontal: space.md,
+                      borderRadius: radius.pill,
+                      borderWidth: 1,
+                      borderColor: 'rgba(244,238,227,0.18)',
                     }}
                   >
-                    {choice.label}
-                  </Text>
-                </Pressable>
-              ))}
-              {seat.kind === 'ai' ? (
-                <Pressable
-                  onPress={() => room.openSeat(seat.seat as SeatId)}
-                  accessibilityRole="button"
-                  style={{
-                    paddingVertical: 7,
-                    paddingHorizontal: space.md,
-                    borderRadius: radius.pill,
-                    backgroundColor: 'rgba(255,255,255,0.07)',
-                  }}
-                >
-                  <Text style={{ fontFamily: type.bodyMedium, fontSize: fontSize.small, color: palette.capiz }}>
-                    Leave it open
-                  </Text>
-                </Pressable>
-              ) : null}
+                    <Text style={{ fontFamily: type.label, fontSize: fontSize.small, color: palette.capiz }}>
+                      Leave it open
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           ) : null}
         </Card>
-      ))}
-
-      <Divider />
+      ) : (
+        <Muted style={{ textAlign: 'center', fontSize: fontSize.small }}>
+          Tap a chair to sit in it{youAreHost ? ', or to seat the house there' : ''}.
+        </Muted>
+      )}
 
       <Card>
-        <Term>House rules for this table</Term>
+        <Term>House rules at this table</Term>
         <Muted style={{ fontSize: fontSize.small }}>
           {view.ruleset.label} · joker {view.ruleset.jokerEnabled ? 'on' : 'off'} · chow{' '}
           {view.ruleset.chowFromAnyPlayer ? 'from anyone' : 'from the left'}
-          {view.ruleset.jaiAlai.enabled
-            ? ` · jai alái to ${view.ruleset.jaiAlai.markersToWin}`
-            : ''}
+          {view.ruleset.jaiAlai.enabled ? ` · jai alái to ${view.ruleset.jaiAlai.markersToWin}` : ''}
         </Muted>
         <Muted style={{ fontSize: fontSize.small }}>
           {youAreHost
-            ? 'Yours, because you opened the table. Change them in House Rules before you start.'
+            ? 'Yours, because you opened the table. Change them in House Rules before you deal.'
             : "The host's rules bind the whole table."}
         </Muted>
       </Card>
@@ -187,7 +211,7 @@ export default function LobbyScreen() {
 
       {youAreHost ? (
         <Button
-          label={room.starting ? 'Dealing…' : 'Start the hand'}
+          label={room.starting ? 'Shuffling…' : 'Deal the first hand'}
           disabled={room.starting}
           onPress={room.start}
         />

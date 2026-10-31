@@ -17,19 +17,7 @@ import {
   type JaiAlaiRules,
   type Ruleset,
 } from '@bahay/engine';
-import {
-  Body,
-  Button,
-  Card,
-  Choice,
-  Divider,
-  Muted,
-  Screen,
-  Term,
-  Title,
-  Toggle,
-  usePalette,
-} from '../components/ui';
+import { BackLink, Body, Button, Card, Choice, Divider, Muted, Screen, Term, Title, Toggle, usePalette } from '../components/ui';
 import { fontSize, radius, space, type } from '../theme/tokens';
 import { useSettings } from '../store/settings';
 
@@ -126,7 +114,7 @@ export default function RulesScreen() {
 
   return (
     <Screen>
-      <Button label="◀ Back" tone="ghost" onPress={() => router.back()} />
+      <BackLink onPress={() => router.back()} />
       <Title>House Rules</Title>
       <Muted>
         Every family plays differently. Dial in exactly how your table plays — it
@@ -221,14 +209,14 @@ export default function RulesScreen() {
                       paddingVertical: 9,
                       paddingHorizontal: space.md,
                       borderRadius: radius.pill,
-                      backgroundColor: active ? palette.gold : 'rgba(255,255,255,0.07)',
+                      backgroundColor: active ? palette.gold : 'rgba(255,236,214,0.04)',
                     }}
                   >
                     <Text
                       style={{
                         fontFamily: type.bodyMedium,
                         fontSize: fontSize.small,
-                        color: active ? '#2A1D07' : palette.capiz,
+                        color: active ? '#2A1C08' : palette.capiz,
                       }}
                     >
                       {candidate.label}

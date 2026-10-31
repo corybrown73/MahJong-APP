@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { Body, Button, Card, Muted, Screen, Term, Title, usePalette } from '../components/ui';
+import { BackLink, Body, Button, Card, Muted, Screen, Term, Title, usePalette } from '../components/ui';
 import { fontSize, radius, space, type } from '../theme/tokens';
 import { getIdentity, setDisplayName } from '../lib/identity';
 import { onlinePlayAvailable } from '../lib/supabaseTransport';
@@ -34,7 +34,7 @@ export default function PlayScreen() {
 
   return (
     <Screen>
-      <Button label="◀ Back" tone="ghost" onPress={() => router.back()} />
+      <BackLink onPress={() => router.back()} />
       <Title>Play with your family</Title>
       <Muted>
         One person opens a table and reads out the code. Everyone else types it
@@ -48,14 +48,16 @@ export default function PlayScreen() {
           onChangeText={setName}
           onEndEditing={saveName}
           placeholder="Player"
-          placeholderTextColor="rgba(255,253,247,0.35)"
+          placeholderTextColor="rgba(244,238,227,0.35)"
           maxLength={16}
           accessibilityLabel="Your name at the table"
           style={{
             fontFamily: type.body,
             fontSize: fontSize.body,
             color: palette.capiz,
-            backgroundColor: 'rgba(255,255,255,0.07)',
+            backgroundColor: 'rgba(255,236,214,0.04)',
+            borderWidth: 1,
+            borderColor: 'rgba(201,161,90,0.3)',
             borderRadius: radius.card,
             paddingHorizontal: space.lg,
             paddingVertical: 12,
@@ -100,7 +102,7 @@ export default function PlayScreen() {
             value={code}
             onChangeText={(next) => setCode(next.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
             placeholder="CODE"
-            placeholderTextColor="rgba(255,253,247,0.35)"
+            placeholderTextColor="rgba(244,238,227,0.35)"
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={6}
@@ -111,7 +113,9 @@ export default function PlayScreen() {
               fontSize: fontSize.large,
               letterSpacing: 6,
               color: palette.capiz,
-              backgroundColor: 'rgba(255,255,255,0.07)',
+              backgroundColor: 'rgba(255,236,214,0.04)',
+            borderWidth: 1,
+            borderColor: 'rgba(201,161,90,0.3)',
               borderRadius: radius.card,
               paddingHorizontal: space.lg,
               paddingVertical: 12,

@@ -32,10 +32,10 @@ importers:
       '@bahay/room':
         specifier: workspace:*
         version: link:../../packages/room
+      '@expo-google-fonts/fraunces':
+        specifier: 0.4.1
+        version: 0.4.1
       '@expo-google-fonts/inter':
-        specifier: ^0.4.2
-        version: 0.4.2
-      '@expo-google-fonts/sora':
         specifier: ^0.4.2
         version: 0.4.2
       '@react-native-async-storage/async-storage':
@@ -845,14 +845,14 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@expo-google-fonts/fraunces@0.4.1':
+    resolution: {integrity: sha512-gYc9P92ObyWvz1rWPOeWSvVKyBFIuA8hgOdhvo4DSiPBaWLbFA6v8uLIEIBwW+0oWTlXbBzjeBReHQI2H7UNjQ==}
+
   '@expo-google-fonts/inter@0.4.2':
     resolution: {integrity: sha512-syfiImMaDmq7cFi0of+waE2M4uSCyd16zgyWxdPOY7fN2VBmSLKEzkfbZgeOjJq61kSqPBNNtXjggiQiSD6gMQ==}
 
   '@expo-google-fonts/material-symbols@0.4.44':
     resolution: {integrity: sha512-36JP9Chcy/QEVZ9ZGY4i6zInlyFPbQjkIm6gRNuWWltScIj0WR8rddcD57EIjSC5YKCe2ZKLO6eO/N5r8Jit0A==}
-
-  '@expo-google-fonts/sora@0.4.2':
-    resolution: {integrity: sha512-X86Kl1cfObcSUzTLIbtmrPCLRlIbCNh0uBOo8bjmXb8gWgVVhnI8CZJEK2btsdq85JPn5k4P6sbV9JLbAm7dqQ==}
 
   '@expo/cli@57.0.15':
     resolution: {integrity: sha512-YIE5xgZlkwx6OyjjVq/zAfqtYvczsWLEkOukDJwaZDaMQl8x5/CjoqC/Oe670DFQc5xjqguH6cmZUWHHL7yH3g==}
@@ -1616,10 +1616,12 @@ packages:
   '@xmldom/xmldom@0.8.14':
     resolution: {integrity: sha512-T4EDRUBVZYRldYApjEJiU0e1stYWaRAX7CuSnKzrpwdZKo53zGV8/pqfzV6FfwNl9YThD2OumQYvqtvjvgG7aQ==}
     engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xmldom/xmldom@0.9.11':
     resolution: {integrity: sha512-tW8bcK3hsG0/uqSnNz6TK4BkcuZSezoU7DlnYssILmZDktPnSHHuDJJFM0AJv+13gz2r0iGdrj6qqKeUnxXEDg==}
     engines: {node: '>=14.6'}
+    deprecated: this version has critical issues, please update to the latest version
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -4318,11 +4320,11 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
+  '@expo-google-fonts/fraunces@0.4.1': {}
+
   '@expo-google-fonts/inter@0.4.2': {}
 
   '@expo-google-fonts/material-symbols@0.4.44': {}
-
-  '@expo-google-fonts/sora@0.4.2': {}
 
   '@expo/cli@57.0.15(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.10)(expo-constants@57.0.11)(expo-font@57.0.1)(expo-router@57.0.13)(expo@57.0.13)(react-dom@19.2.3(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)':
     dependencies:

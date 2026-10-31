@@ -2,7 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { AMBITIONS } from '@bahay/engine';
-import { Body, Button, Card, Divider, Muted, Screen, Term, Title } from '../components/ui';
+import { BackLink, Body, Button, Card, Divider, Muted, Screen, Term, Title } from '../components/ui';
 import { fontSize, space } from '../theme/tokens';
 import { usePalette } from '../components/ui';
 import { useStats } from '../store/stats';
@@ -14,7 +14,7 @@ export default function StatsScreen() {
 
   return (
     <Screen>
-      <Button label="◀ Back" tone="ghost" onPress={() => router.back()} />
+      <BackLink onPress={() => router.back()} />
       <Title>Stats</Title>
 
       <Card>

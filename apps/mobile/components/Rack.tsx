@@ -51,12 +51,14 @@ export function Rack({
   const { tileScale, reducedMotion, highContrast, haptics } = useSettings();
   const [dragging, setDragging] = useState<number | null>(null);
 
+  // n tiles that each overlap the next span w·(n·OVERLAP + 1 − OVERLAP), plus
+  // the gap that sets the drawn tile apart. Solve for w so the rack fits.
   const count = Math.max(tiles.length, 1);
-  const available = width - space.lg * 2;
-  const step = Math.min(46, available / (count * OVERLAP + (1 - OVERLAP)));
-  const tileWidth = Math.max(20, Math.round(step / OVERLAP) * tileScale);
+  const available = Math.min(width, 640) - space.md * 2 - (justDrewId ? 14 : 0);
+  const fit = available / (count * OVERLAP + (1 - OVERLAP));
+  const tileWidth = Math.max(18, Math.floor(Math.min(52, fit * tileScale)));
   const stepWidth = Math.round(tileWidth * OVERLAP);
-  const height = Math.round(tileWidth * TILE_RATIO) + 18;
+  const height = Math.round(tileWidth * TILE_RATIO) + 14;
 
   const isJoker = useCallback(
     (tile: TileModel) =>
@@ -228,6 +230,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    paddingHorizontal: space.lg,
+    paddingHorizontal: space.md,
   },
 });

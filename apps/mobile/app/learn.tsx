@@ -11,7 +11,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import type { Rank, Suit, Tile as TileModel } from '@bahay/engine';
 import { Tile } from '../components/Tile';
-import { Body, Button, Card, Muted, Screen, Term, Title, usePalette } from '../components/ui';
+import { BackLink, Body, Button, Card, Muted, Screen, Term, Title, usePalette } from '../components/ui';
 import { fontSize, space } from '../theme/tokens';
 import { useGame } from '../store/game';
 import { useSettings } from '../store/settings';
@@ -121,7 +121,7 @@ export default function LearnScreen() {
 
   return (
     <Screen>
-      <Button label="◀ Back" tone="ghost" onPress={() => router.back()} />
+      <BackLink onPress={() => router.back()} />
 
       <Term>
         {step.term} of {steps.length}

@@ -11,7 +11,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import type { CallType } from '@bahay/engine';
-import { fontSize, radius, space, type } from '../theme/tokens';
+import { fontSize, onBrass, radius, space, type } from '../theme/tokens';
 import { usePalette } from './ui';
 
 export type CallOption = {
@@ -53,7 +53,7 @@ export function CallBar({ options, windowProgress, onCall, onPass, onExplain }: 
   const windowOpen = windowProgress !== null;
 
   return (
-    <View style={[styles.bar, { backgroundColor: 'rgba(0,0,0,0.26)' }]}>
+    <View style={styles.bar}>
       {windowOpen ? (
         <Animated.View style={[styles.drain, { backgroundColor: palette.goldGlow }, drain]} />
       ) : null}
@@ -73,15 +73,22 @@ export function CallBar({ options, windowProgress, onCall, onPass, onExplain }: 
               accessibilityLabel={option ? option.describe : `${LABELS[call]} not available`}
               style={[
                 styles.button,
+                call === 'todas' ? { flex: 1.35 } : null,
                 enabled
-                  ? { backgroundColor: palette.gold }
-                  : { backgroundColor: 'rgba(255,255,255,0.05)' },
+                  ? {
+                      backgroundColor: palette.gold,
+                      borderTopWidth: 1,
+                      borderTopColor: palette.goldGlow,
+                      borderBottomWidth: 3,
+                      borderBottomColor: palette.brassDark,
+                    }
+                  : styles.idle,
               ]}
             >
               <Text
                 style={[
                   styles.label,
-                  { color: enabled ? '#2A1D07' : 'rgba(255,253,247,0.28)' },
+                  { color: enabled ? onBrass : 'rgba(244,238,227,0.3)' },
                 ]}
               >
                 {LABELS[call]}
@@ -98,13 +105,15 @@ export function CallBar({ options, windowProgress, onCall, onPass, onExplain }: 
           style={[
             styles.button,
             styles.pass,
-            { backgroundColor: windowOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)' },
+            windowOpen
+              ? { backgroundColor: palette.lacquerLight, borderWidth: 1, borderColor: palette.gold }
+              : styles.idle,
           ]}
         >
           <Text
             style={[
               styles.label,
-              { color: windowOpen ? 'rgba(255,253,247,0.8)' : 'rgba(255,253,247,0.28)' },
+              { color: windowOpen ? palette.goldGlow : 'rgba(244,238,227,0.3)' },
             ]}
           >
             PASS
@@ -116,20 +125,25 @@ export function CallBar({ options, windowProgress, onCall, onPass, onExplain }: 
 }
 
 const styles = StyleSheet.create({
-  bar: { paddingVertical: space.sm, paddingHorizontal: space.md, gap: space.sm },
+  bar: { paddingTop: space.xs, paddingHorizontal: space.md, gap: space.xs },
   drain: { height: 2, borderRadius: 2, marginBottom: 2 },
+  idle: {
+    backgroundColor: 'rgba(255,236,214,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,161,90,0.16)',
+  },
   row: { flexDirection: 'row', gap: 6 },
   button: {
     flex: 1,
-    paddingVertical: 13,
-    borderRadius: radius.tile + 2,
+    paddingVertical: 12,
+    borderRadius: radius.card - 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pass: { flex: 0.7 },
   label: {
-    fontFamily: type.displaySemi,
+    fontFamily: type.label,
     fontSize: fontSize.micro,
-    letterSpacing: 1.4,
+    letterSpacing: 1.6,
   },
 });

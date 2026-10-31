@@ -1,14 +1,17 @@
 /**
- * The table, as a presentational component.
+ * The table screen, as a presentational component.
  *
  * Solo play and online play render this same screen. It takes a
  * PublicGameView — the filtered view a server would send — so it is incapable
  * of showing another player's tiles even by accident, and the two paths can
  * never drift apart visually.
+ *
+ * Top to bottom: a slim header, the automatic table filling whatever room is
+ * left, the call bar, and your own tiles on a narra rack.
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -25,13 +28,13 @@ import {
 import { shanten } from '@bahay/ai';
 import { CallBanner } from './CallBanner';
 import { CallBar, type CallOption } from './CallBar';
-import { DiscardPool } from './DiscardPool';
+import { MahjongTable, seatWind } from './MahjongTable';
 import { Rack } from './Rack';
-import { MeldChip, OpponentStrip, describeMeld } from './Seats';
+import { describeMeld } from './Seats';
 import { Tile } from './Tile';
 import { WinScreen } from './WinScreen';
-import { Body, Button, Muted, Term, usePalette } from './ui';
-import { fontSize, radius, space, type } from '../theme/tokens';
+import { Backdrop, Body, Muted, Term, usePalette } from './ui';
+import { fontSize, onBrass, radius, space, type } from '../theme/tokens';
 import { useSettings } from '../store/settings';
 import type { Banner } from '../store/game';
 
@@ -50,7 +53,7 @@ export type TableViewProps = {
   selectedTileId: string | null;
   pendingDiscard: boolean;
   settlement: Settlement | null;
-  /** Which seats the table is waiting on, for the turn ring. */
+  /** Which seats the table is waiting on, for the lit nameplate and wind. */
   waiting: SeatId[];
   /** Shown under the header: "waiting for Tita", a reconnect notice, and so on. */
   statusLine?: string | null;
@@ -72,6 +75,8 @@ export type TableViewProps = {
   onNextHand: () => void;
   onLeave: () => void;
 };
+
+const WIND_NAMES = ['East', 'South', 'West', 'North'] as const;
 
 export function TableView(props: TableViewProps) {
   const palette = usePalette();
@@ -95,6 +100,18 @@ export function TableView(props: TableViewProps) {
   const [magnified, setMagnified] = useState<TileModel | null>(null);
   const [inspecting, setInspecting] = useState<TileModel | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [tableBox, setTableBox] = useState({ width: 0, height: 0 });
+
+  const onTableLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setTableBox((box) =>
+      Math.abs(box.width - width) < 1 && Math.abs(box.height - height) < 1 ? box : { width, height },
+    );
+  }, []);
+  // Square when the room is square; on a tall phone the table lengthens (up to half
+  // again as long) so the extra height goes to bigger, readable discards.
+  const tableWidth = Math.floor(Math.min(tableBox.width - space.sm * 2, 620));
+  const tableHeight = Math.floor(Math.min(tableBox.height, tableWidth * 1.5));
 
   const callOptions: CallOption[] = useMemo(
     () =>
@@ -144,69 +161,67 @@ export function TableView(props: TableViewProps) {
       : null;
   const selected = view.hand.find((t) => t.id === selectedTileId) ?? null;
   const myTurn = view.phase.name === 'AWAITING_DISCARD' && view.phase.seat === yourSeat;
+  const seat = yourSeat ?? 0;
+  const myChips = view.players[seat].chips;
 
-  const others = ([0, 1, 2, 3] as SeatId[]).filter((seat) => seat !== (yourSeat ?? 0));
-  const [leftSeat, topSeat, rightSeat] = orderAround(yourSeat ?? 0, others);
-  const myChips = view.players[yourSeat ?? 0].chips;
+  const describeSeat = (target: SeatId) => {
+    const player = view.players[target];
+    const wind = WIND_NAMES[seatWind(target, view.dealerSeat)];
+    const melds = player.melds.map((m) => describeMeld(m as Meld)).join('; ');
+    setNote(
+      `${names[target]} — ${wind}${target === view.dealerSeat ? ' (máno)' : ''}. ` +
+        `${player.concealedCount} tiles hidden, ${player.flowers.length} flowers, ` +
+        `${player.chips >= 0 ? '+' : '−'}${Math.abs(player.chips).toFixed(2)} chips.` +
+        (melds ? ` Showing: ${melds}.` : ''),
+    );
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.feltDeep }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.night }} edges={['top', 'bottom']}>
+      <Backdrop />
+
       <View style={styles.header}>
-        <Pressable onPress={props.onLeave} accessibilityRole="button" hitSlop={8}>
-          <Text style={[styles.headerText, { color: palette.capiz }]}>◀ Leave</Text>
+        <Pressable onPress={props.onLeave} accessibilityRole="button" hitSlop={8} style={styles.leave}>
+          <Text style={[styles.leaveText, { color: palette.capiz }]}>‹ Leave</Text>
         </Pressable>
-        <Text style={[styles.headerText, { color: palette.capiz }]}>
-          Round {view.round} · hand {view.handNumber}
-          {view.dealerSeat === yourSeat ? ' · you deal' : ''}
-          {view.doublesActive ? ' · doubles' : ''}
-          {view.ruleset.jaiAlai.enabled ? ` · pot ${view.pot.toFixed(2)}` : ''}
-        </Text>
-        <Text style={[styles.chips, { color: palette.gold }]}>
-          {view.ruleset.jaiAlai.enabled ? `◆${view.markers[yourSeat ?? 0]} · ` : ''}
-          {myChips >= 0 ? '' : '−'}
+        <View style={{ alignItems: 'center' }}>
+          <Term style={{ fontSize: 10 }}>
+            Round {view.round} · Hand {view.handNumber}
+          </Term>
+          <Text style={[styles.headerSub, { color: palette.capiz }]}>
+            {view.dealerSeat === yourSeat ? 'You deal' : `${names[view.dealerSeat]} deals`}
+            {view.ruleset.jaiAlai.enabled ? ` · pot ${view.pot.toFixed(2)}` : ''}
+          </Text>
+        </View>
+        <Text style={[styles.chips, { color: palette.goldGlow }]}>
+          {view.ruleset.jaiAlai.enabled ? `◆${view.markers[seat]}  ` : ''}
+          {myChips >= 0 ? '+' : '−'}
           {Math.abs(myChips).toFixed(2)}
         </Text>
       </View>
 
       {statusLine ? (
-        <Text style={[styles.status, { color: palette.gold }]} numberOfLines={1}>
+        <Text style={[styles.status, { color: palette.goldGlow }]} numberOfLines={1}>
           {statusLine}
         </Text>
       ) : null}
 
-      <View style={styles.topSeat}>
-        <OpponentStrip
-          summary={summaryFor(view, topSeat, names)}
-          active={waiting.includes(topSeat)}
-          orientation="top"
-          onMeldPress={(meld) => setNote(describeMeld(meld))}
-        />
-      </View>
-
-      <View style={styles.middle}>
-        <View style={styles.sideSeat}>
-          <OpponentStrip
-            summary={summaryFor(view, leftSeat, names)}
-            active={waiting.includes(leftSeat)}
-            orientation="left"
-            onMeldPress={(meld) => setNote(describeMeld(meld))}
+      <View style={styles.tableArea} onLayout={onTableLayout}>
+        {tableWidth > 120 && tableHeight > 120 ? (
+          <MahjongTable
+            width={Math.min(tableWidth, tableHeight)}
+            height={tableHeight}
+            view={view}
+            viewerSeat={seat}
+            spectating={yourSeat === null}
+            names={names}
+            waiting={waiting}
+            palette={palette}
+            onTapDiscard={setInspecting}
+            onTapMeld={(meld) => setNote(describeMeld(meld))}
+            onTapSeat={describeSeat}
           />
-        </View>
-
-        <DiscardPool
-          discards={view.discards}
-          tilesRemaining={view.tilesRemaining}
-          onTapTile={setInspecting}
-        />
-
-        <View style={styles.sideSeat}>
-          <OpponentStrip
-            summary={summaryFor(view, rightSeat, names)}
-            active={waiting.includes(rightSeat)}
-            orientation="right"
-            onMeldPress={(meld) => setNote(describeMeld(meld))}
-          />
-        </View>
+        ) : null}
       </View>
 
       {settings.coachMode && yourSeat !== null ? (
@@ -228,14 +243,6 @@ export function TableView(props: TableViewProps) {
         onExplain={setNote}
       />
 
-      {view.melds.length > 0 ? (
-        <View style={styles.myMelds}>
-          {view.melds.map((meld, index) => (
-            <MeldChip key={index} meld={meld} onPress={() => setNote(describeMeld(meld))} />
-          ))}
-        </View>
-      ) : null}
-
       {declarations.length > 0 ? (
         <View style={styles.declarations}>
           {declarations.map((action, index) => (
@@ -247,7 +254,14 @@ export function TableView(props: TableViewProps) {
                 }
                 props.onDeclare(action);
               }}
-              style={[styles.declare, { backgroundColor: palette.gold }]}
+              style={[
+                styles.declare,
+                {
+                  backgroundColor: palette.gold,
+                  borderTopColor: palette.goldGlow,
+                  borderBottomColor: palette.brassDark,
+                },
+              ]}
               accessibilityRole="button"
             >
               <Text style={styles.declareText}>{declarationLabel(action)}</Text>
@@ -257,10 +271,10 @@ export function TableView(props: TableViewProps) {
       ) : null}
 
       {pendingDiscard ? (
-        <View style={[styles.undo, { backgroundColor: palette.felt }]}>
+        <View style={[styles.undo, { borderColor: 'rgba(201,161,90,0.35)' }]}>
           <Body style={{ flex: 1 }}>Discarding…</Body>
-          <Pressable onPress={props.onUndoDiscard} accessibilityRole="button">
-            <Text style={[styles.undoText, { color: palette.gold }]}>UNDO</Text>
+          <Pressable onPress={props.onUndoDiscard} accessibilityRole="button" hitSlop={8}>
+            <Text style={[styles.undoText, { color: palette.goldGlow }]}>UNDO</Text>
           </Pressable>
         </View>
       ) : selected && myTurn ? (
@@ -270,7 +284,14 @@ export function TableView(props: TableViewProps) {
               if (settings.haptics) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               props.onConfirmDiscard();
             }}
-            style={[styles.confirm, { backgroundColor: palette.gold }]}
+            style={[
+              styles.confirm,
+              {
+                backgroundColor: palette.gold,
+                borderTopColor: palette.goldGlow,
+                borderBottomColor: palette.brassDark,
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel={`Discard ${describeShort(selected)}`}
           >
@@ -278,7 +299,7 @@ export function TableView(props: TableViewProps) {
           </Pressable>
           <Pressable
             onPress={props.onCancelSelection}
-            style={[styles.cancel, { borderColor: 'rgba(255,253,247,0.25)' }]}
+            style={[styles.cancel, { borderColor: 'rgba(244,238,227,0.2)' }]}
             accessibilityRole="button"
           >
             <Text style={[styles.cancelText, { color: palette.capiz }]}>CANCEL</Text>
@@ -286,30 +307,44 @@ export function TableView(props: TableViewProps) {
         </View>
       ) : null}
 
-      <View style={[styles.rackArea, { backgroundColor: 'rgba(0,0,0,0.28)' }]}>
+      <View style={styles.rackArea}>
         {yourSeat === null ? (
           <Muted style={{ textAlign: 'center', paddingVertical: space.lg }}>
-            Watching — every seat was taken.
+            Watching — every chair was taken.
           </Muted>
         ) : (
           <>
-            <Rack
-              tiles={view.hand}
-              selectedTileId={selectedTileId}
-              justDrewId={justDrew}
-              joker={view.joker}
-              onSelect={props.onSelectTile}
-              onMove={props.onMoveTile}
-              onMagnify={setMagnified}
-              disabled={!!settlement}
-            />
+            <View>
+              <Rack
+                tiles={view.hand}
+                selectedTileId={selectedTileId}
+                justDrewId={justDrew}
+                joker={view.joker}
+                onSelect={props.onSelectTile}
+                onMove={props.onMoveTile}
+                onMagnify={setMagnified}
+                disabled={!!settlement}
+              />
+              {/* The narra ledge the tiles stand on. */}
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.ledge,
+                  {
+                    backgroundColor: palette.narra,
+                    borderTopColor: palette.narraLight,
+                    borderBottomColor: palette.narraDark,
+                  },
+                ]}
+              />
+            </View>
 
             <View style={styles.tools}>
               <Tool label="Sort" onPress={props.onSort} />
               <Tool label={showHint ? 'Hint ▾' : 'Hint'} onPress={props.onToggleHint} />
-              <Tool label={`🌸 ${view.flowers.length}`} onPress={() => undefined} />
+              <Tool label={`花 ${view.flowers.length}`} onPress={() => describeSeat(seat)} />
               <Tool
-                label={`Coach ▸ ${settings.coachMode ? 'on' : 'off'}`}
+                label={`Coach · ${settings.coachMode ? 'on' : 'off'}`}
                 onPress={() => settings.set('coachMode', !settings.coachMode)}
               />
             </View>
@@ -363,17 +398,22 @@ export function TableView(props: TableViewProps) {
 
       <Modal visible={!!magnified} transparent animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setMagnified(null)}>
-          {magnified ? <Tile tile={magnified} width={120} palette={palette} /> : null}
+          {magnified ? <Tile tile={magnified} width={132} palette={palette} /> : null}
         </Pressable>
       </Modal>
 
       <Modal visible={!!inspecting} transparent animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setInspecting(null)}>
-          <View style={[styles.sheet, { backgroundColor: palette.capiz }]}>
+          <View style={[styles.sheet, { backgroundColor: palette.lacquerLight }]}>
             {inspecting ? (
               <>
-                <Text style={styles.sheetTitle}>{describeShort(inspecting)}</Text>
-                <Text style={styles.sheetBody}>
+                <View style={{ alignItems: 'center', paddingBottom: space.sm }}>
+                  <Tile tile={inspecting} width={84} palette={palette} />
+                </View>
+                <Text style={[styles.sheetTitle, { color: palette.capiz }]}>
+                  {describeShort(inspecting)}
+                </Text>
+                <Text style={[styles.sheetBody, { color: palette.capiz }]}>
                   {inspecting.kind === 'suited'
                     ? `${unseenCount(view, {
                         suit: inspecting.suit,
@@ -389,22 +429,13 @@ export function TableView(props: TableViewProps) {
 
       <Modal visible={!!note} transparent animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setNote(null)}>
-          <View style={[styles.sheet, { backgroundColor: palette.capiz }]}>
-            <Text style={styles.sheetBody}>{note}</Text>
+          <View style={[styles.sheet, { backgroundColor: palette.lacquerLight }]}>
+            <Text style={[styles.sheetBody, { color: palette.capiz }]}>{note}</Text>
           </View>
         </Pressable>
       </Modal>
     </SafeAreaView>
   );
-}
-
-/** Left, top, right as seen from `you` — the player is always at the bottom. */
-function orderAround(you: SeatId, others: SeatId[]): [SeatId, SeatId, SeatId] {
-  const left = ((you + 3) % 4) as SeatId;
-  const top = ((you + 2) % 4) as SeatId;
-  const right = ((you + 1) % 4) as SeatId;
-  void others;
-  return [left, top, right];
 }
 
 function Tool({ label, onPress }: { label: string; onPress: () => void }) {
@@ -413,24 +444,11 @@ function Tool({ label, onPress }: { label: string; onPress: () => void }) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={[styles.tool, { backgroundColor: 'rgba(255,255,255,0.07)' }]}
+      style={[styles.tool, { borderColor: 'rgba(201,161,90,0.28)' }]}
     >
       <Text style={[styles.toolText, { color: palette.capiz }]}>{label}</Text>
     </Pressable>
   );
-}
-
-function summaryFor(view: PublicGameView, seat: SeatId, names: Record<SeatId, string>) {
-  const player = view.players[seat];
-  return {
-    seat,
-    name: names[seat],
-    concealedCount: player.concealedCount,
-    melds: player.melds as Meld[],
-    flowers: player.flowers.length,
-    chips: player.chips,
-    isDealer: player.isDealer,
-  };
 }
 
 function declarationLabel(action: Action): string {
@@ -458,50 +476,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: space.lg,
-    paddingVertical: space.sm,
+    paddingVertical: space.xs,
   },
-  headerText: { fontFamily: type.body, fontSize: fontSize.small, opacity: 0.8 },
-  chips: { fontFamily: type.displaySemi, fontSize: fontSize.body },
+  leave: { minWidth: 64 },
+  leaveText: { fontFamily: type.bodyMedium, fontSize: fontSize.small, opacity: 0.85 },
+  headerSub: { fontFamily: type.displayItalic, fontSize: fontSize.small, opacity: 0.8 },
+  chips: { fontFamily: type.display, fontSize: fontSize.body, minWidth: 64, textAlign: 'right' },
   status: {
-    fontFamily: type.displaySemi,
+    fontFamily: type.label,
     fontSize: fontSize.micro,
-    letterSpacing: 1.2,
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
     textAlign: 'center',
-    paddingBottom: 4,
+    paddingBottom: 2,
   },
-  topSeat: { alignItems: 'center', paddingTop: 2 },
-  middle: {
+  tableArea: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: space.sm,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: space.xs,
   },
-  // Wide enough for the longest personality name to sit on one line.
-  sideSeat: { width: 90, justifyContent: 'center' },
-  coach: { paddingHorizontal: space.lg, paddingBottom: space.sm, gap: 2 },
-  myMelds: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: space.md,
-    paddingTop: space.sm,
-    flexWrap: 'wrap',
-  },
+  coach: { paddingHorizontal: space.lg, paddingBottom: space.xs, gap: 2 },
   declarations: {
     flexDirection: 'row',
     gap: 6,
     paddingHorizontal: space.md,
     paddingTop: space.sm,
     flexWrap: 'wrap',
+    justifyContent: 'center',
   },
-  declare: { paddingVertical: 10, paddingHorizontal: space.lg, borderRadius: radius.pill },
+  declare: {
+    paddingVertical: 10,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+    borderTopWidth: 1,
+    borderBottomWidth: 2,
+  },
   declareText: {
-    fontFamily: type.displaySemi,
+    fontFamily: type.label,
     fontSize: fontSize.micro,
-    letterSpacing: 1.4,
-    color: '#2A1D07',
+    letterSpacing: 1.6,
+    color: onBrass,
   },
   confirmRow: {
     flexDirection: 'row',
@@ -509,12 +524,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     paddingTop: space.sm,
   },
-  confirm: { flex: 1, paddingVertical: 13, borderRadius: radius.card, alignItems: 'center' },
+  confirm: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: radius.card,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderBottomWidth: 3,
+  },
   confirmText: {
-    fontFamily: type.displaySemi,
+    fontFamily: type.label,
     fontSize: fontSize.small,
-    letterSpacing: 1.2,
-    color: '#2A1D07',
+    letterSpacing: 1.4,
+    color: onBrass,
   },
   cancel: {
     paddingVertical: 13,
@@ -522,7 +544,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     borderWidth: 1,
   },
-  cancelText: { fontFamily: type.displaySemi, fontSize: fontSize.small, letterSpacing: 1.2 },
+  cancelText: { fontFamily: type.label, fontSize: fontSize.small, letterSpacing: 1.4 },
   undo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -531,27 +553,53 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: space.lg,
     borderRadius: radius.card,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,236,214,0.04)',
     gap: space.md,
   },
-  undoText: { fontFamily: type.displaySemi, fontSize: fontSize.small, letterSpacing: 1.4 },
-  rackArea: { paddingTop: space.sm, paddingBottom: space.sm, gap: space.sm },
+  undoText: { fontFamily: type.label, fontSize: fontSize.small, letterSpacing: 1.6 },
+  rackArea: { paddingTop: space.sm, paddingBottom: space.xs, gap: space.sm },
+  ledge: {
+    position: 'absolute',
+    left: space.sm,
+    right: space.sm,
+    bottom: 0,
+    height: 12,
+    borderRadius: 4,
+    borderTopWidth: 1,
+    borderBottomWidth: 2,
+    zIndex: -1,
+  },
   tools: { flexDirection: 'row', gap: space.sm, justifyContent: 'center' },
-  tool: { paddingVertical: 7, paddingHorizontal: space.md, borderRadius: radius.pill },
+  tool: {
+    paddingVertical: 6,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,236,214,0.03)',
+  },
   toolText: {
-    fontFamily: type.displaySemi,
+    fontFamily: type.label,
     fontSize: fontSize.micro,
-    letterSpacing: 1.1,
+    letterSpacing: 1.3,
     textTransform: 'uppercase',
   },
   hint: { paddingHorizontal: space.lg },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(6,18,13,0.7)',
+    backgroundColor: 'rgba(8,6,5,0.78)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: space.xl,
   },
-  sheet: { borderRadius: radius.sheet, padding: space.xl, gap: space.sm, maxWidth: 380 },
-  sheetTitle: { fontFamily: type.displaySemi, fontSize: fontSize.large, color: '#1A1613' },
-  sheetBody: { fontFamily: type.body, fontSize: fontSize.body, color: '#1A1613' },
+  sheet: {
+    borderRadius: radius.sheet,
+    padding: space.xl,
+    gap: space.sm,
+    maxWidth: 380,
+    borderWidth: 1,
+    borderColor: 'rgba(201,161,90,0.35)',
+  },
+  sheetTitle: { fontFamily: type.display, fontSize: fontSize.large, textAlign: 'center' },
+  sheetBody: { fontFamily: type.body, fontSize: fontSize.body, lineHeight: 23 },
 });

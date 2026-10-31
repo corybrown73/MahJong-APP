@@ -392,7 +392,7 @@ function shadowState(view: RoomView, seat: SeatId) {
     // carrying the real remaining count over from the view.
     drawnFromWall: 144 - game.tilesRemaining,
     giftsDrawn: 0,
-    dice: [1, 1] as [number, number],
+    dice: game.dice,
     joker: game.joker,
     players,
     discards: game.discards,

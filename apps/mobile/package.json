@@ -14,8 +14,9 @@
   "dependencies": {
     "@bahay/ai": "workspace:*",
     "@bahay/engine": "workspace:*",
+    "@bahay/room": "workspace:*",
+    "@expo-google-fonts/fraunces": "0.4.1",
     "@expo-google-fonts/inter": "^0.4.2",
-    "@expo-google-fonts/sora": "^0.4.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.13",
     "expo-constants": "~57.0.11",
@@ -35,8 +36,7 @@
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1",
-    "zustand": "^5.0.2",
-    "@bahay/room": "workspace:*"
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

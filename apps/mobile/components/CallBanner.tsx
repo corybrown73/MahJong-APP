@@ -12,7 +12,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { fontSize, motion, space, speedMultiplier, type } from '../theme/tokens';
+import { fontSize, motion, onBrass, space, speedMultiplier, type } from '../theme/tokens';
 import { useSettings } from '../store/settings';
 import type { Banner } from '../store/game';
 import { usePalette } from './ui';
@@ -54,7 +54,17 @@ export function CallBanner({
 
   return (
     <View pointerEvents="none" style={styles.overlay}>
-      <Animated.View style={[styles.banner, { backgroundColor: palette.gold }, style]}>
+      <Animated.View
+        style={[
+          styles.banner,
+          {
+            backgroundColor: palette.gold,
+            borderTopColor: palette.goldGlow,
+            borderBottomColor: palette.brassDark,
+          },
+          style,
+        ]}
+      >
         <Text style={styles.who}>{who.toUpperCase()} CALLS</Text>
         <Text style={styles.what}>{spaced(banner.headline)}</Text>
         <Text style={styles.detail}>{banner.detail}</Text>
@@ -81,25 +91,27 @@ const styles = StyleSheet.create({
   banner: {
     paddingVertical: space.lg,
     paddingHorizontal: space.xxl,
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: 'center',
+    borderTopWidth: 1.5,
+    borderBottomWidth: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.6,
     shadowRadius: 26,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 10 },
     elevation: 10,
   },
   who: {
-    fontFamily: type.displaySemi,
+    fontFamily: type.label,
     fontSize: fontSize.micro,
-    letterSpacing: 2.4,
-    color: 'rgba(42,29,7,0.7)',
+    letterSpacing: 2.6,
+    color: 'rgba(42,28,8,0.7)',
   },
   what: {
     fontFamily: type.display,
-    fontSize: fontSize.title,
-    letterSpacing: 3,
-    color: '#2A1D07',
+    fontSize: fontSize.title + 6,
+    letterSpacing: 2,
+    color: onBrass,
   },
-  detail: { fontFamily: type.body, fontSize: fontSize.small, color: 'rgba(42,29,7,0.78)' },
+  detail: { fontFamily: type.displayItalic, fontSize: fontSize.small, color: 'rgba(42,28,8,0.82)' },
 });

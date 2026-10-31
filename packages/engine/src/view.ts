@@ -45,6 +45,8 @@ export type PublicGameView = {
   round: number;
   handNumber: number;
   doublesActive: boolean;
+  /** The máno's roll that broke the wall — rolled in the open. */
+  dice: [number, number];
   /** Jai alái markers per seat, and the pot. Public at any real table. */
   markers: [number, number, number, number];
   pot: number;
@@ -95,6 +97,7 @@ export function publicView(state: GameState, seat: SeatId): PublicGameView {
     round: state.round,
     handNumber: state.handNumber,
     doublesActive: state.doublesActive,
+    dice: [...state.dice] as [number, number],
     markers: [...state.markers] as [number, number, number, number],
     pot: state.pot,
   };

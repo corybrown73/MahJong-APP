@@ -1,6 +1,6 @@
 import React from 'react';
 import { router } from 'expo-router';
-import { Button, Card, Choice, Muted, Screen, Term, Title, Toggle } from '../components/ui';
+import { BackLink, Button, Card, Choice, Muted, Screen, Term, Title, Toggle } from '../components/ui';
 import { fontSize } from '../theme/tokens';
 import { useSettings } from '../store/settings';
 
@@ -9,7 +9,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <Button label="◀ Back" tone="ghost" onPress={() => router.back()} />
+      <BackLink onPress={() => router.back()} />
       <Title>Settings</Title>
 
       <Card>

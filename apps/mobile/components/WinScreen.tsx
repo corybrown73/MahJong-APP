@@ -12,8 +12,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import type { Meld, SeatId, Settlement, Tile as TileModel } from '@bahay/engine';
 import { colors, fontSize, motion, radius, space, speedMultiplier, type } from '../theme/tokens';
 import { useSettings } from '../store/settings';
-import { MeldChip, describeMeld } from './Seats';
-import { TileGlyph } from './TileFace';
+import { describeMeld } from './Seats';
+import { Tile } from './Tile';
 import { Button } from './ui';
 
 type Props = {
@@ -81,7 +81,12 @@ export function WinScreen({
     <View style={styles.backdrop}>
       <View style={styles.sheet}>
         <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.sm }}>
-          <Text style={styles.title}>{spaced(title)}</Text>
+          <Text
+            style={[styles.title, title.length > 10 ? { fontSize: 24, letterSpacing: 2 } : null]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
 
           <View style={{ height: space.md }} />
@@ -175,16 +180,16 @@ export function WinScreen({
                 <Text style={styles.payLabel}>
                   {settlement.markerAward.reason} — {names[settlement.markerAward.seat]}
                 </Text>
-                <Text style={[styles.payValue, { color: colors.vermilion }]}>
+                <Text style={[styles.payValue, { color: colors.goldGlow }]}>
                   ◆ +{settlement.markerAward.markers}
                 </Text>
               </View>
               {settlement.potWin ? (
                 <View style={styles.payRow}>
-                  <Text style={[styles.payLabel, { color: colors.vermilion }]}>
+                  <Text style={[styles.payLabel, { color: colors.goldGlow }]}>
                     {names[settlement.potWin.seat]} sweeps the jai alái pot
                   </Text>
-                  <Text style={[styles.payValue, { color: colors.vermilion }]}>
+                  <Text style={[styles.payValue, { color: colors.goldGlow }]}>
                     +{settlement.potWin.amount.toFixed(2)}
                   </Text>
                 </View>
@@ -211,17 +216,25 @@ export function WinScreen({
               <Text style={styles.sectionLabel}>THE WINNING HAND</Text>
               <View style={styles.handRow}>
                 {winnerHand.melds.map((meld, index) => (
-                  <View key={index} style={{ alignItems: 'center', gap: 2 }}>
-                    <MeldChip meld={meld} />
+                  <View key={index} style={{ alignItems: 'center', gap: 3 }}>
+                    <View style={{ flexDirection: 'row', gap: 1 }}>
+                      {meld.tiles.map((tile, i) => (
+                        <Tile
+                          key={tile.id ?? i}
+                          tile={tile}
+                          width={22}
+                          flat
+                          faceDown={meld.type === 'kang' && meld.variant === 'secret' && i < 3}
+                        />
+                      ))}
+                    </View>
                     <Text style={styles.meldLabel}>{describeMeld(meld)}</Text>
                   </View>
                 ))}
               </View>
               <View style={styles.handRow}>
                 {winnerHand.concealed.map((tile) => (
-                  <View key={tile.id} style={styles.handTile}>
-                    <TileGlyph tile={tile} size={16} palette={colors} />
-                  </View>
+                  <Tile key={tile.id} tile={tile} width={24} flat />
                 ))}
               </View>
             </View>
@@ -238,7 +251,7 @@ export function WinScreen({
                   <Text
                     style={[
                       styles.payValue,
-                      { color: index === 0 ? colors.vermilion : undefined },
+                      { color: index === 0 ? colors.goldGlow : undefined },
                     ]}
                   >
                     {entry.chips >= 0 ? '+' : '−'}
@@ -274,10 +287,6 @@ export function WinScreen({
   );
 }
 
-function spaced(text: string): string {
-  return text.split('').join(' ');
-}
-
 const styles = StyleSheet.create({
   backdrop: {
     position: 'absolute',
@@ -285,7 +294,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(6,18,13,0.72)',
+    backgroundColor: 'rgba(8,6,5,0.8)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: space.lg,
@@ -295,54 +304,57 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     maxHeight: '90%',
-    backgroundColor: colors.capiz,
+    backgroundColor: colors.lacquerLight,
     borderRadius: radius.sheet,
+    borderWidth: 1,
+    borderColor: 'rgba(201,161,90,0.55)',
+    shadowColor: '#000',
+    shadowOpacity: 0.7,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 20,
   },
   title: {
     fontFamily: type.display,
-    fontSize: fontSize.title,
-    letterSpacing: 4,
+    fontSize: fontSize.title + 6,
+    letterSpacing: 6,
     textAlign: 'center',
-    color: colors.vermilion,
+    color: colors.goldGlow,
   },
   subtitle: {
-    fontFamily: type.body,
-    fontSize: fontSize.small,
+    fontFamily: type.displayItalic,
+    fontSize: fontSize.body,
     textAlign: 'center',
-    color: colors.inkSoft,
+    color: colors.capiz,
+    opacity: 0.8,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 9,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(26,22,19,0.08)',
+    borderBottomColor: 'rgba(201,161,90,0.14)',
   },
-  rowLabel: { fontFamily: type.body, fontSize: fontSize.body, color: colors.ink, flex: 1 },
-  rowValue: { fontFamily: type.displaySemi, fontSize: fontSize.body, color: colors.ink },
-  total: { borderBottomWidth: 0, borderTopWidth: 2, borderTopColor: colors.ink, marginTop: 6 },
-  totalText: { fontSize: fontSize.large },
-  totalValue: { fontSize: fontSize.large, color: colors.vermilion },
+  rowLabel: { fontFamily: type.body, fontSize: fontSize.body, color: colors.capiz, flex: 1 },
+  rowValue: { fontFamily: type.displaySemi, fontSize: fontSize.body, color: colors.capiz },
+  total: {
+    borderBottomWidth: 0,
+    borderTopWidth: 1.5,
+    borderTopColor: colors.gold,
+    marginTop: 6,
+  },
+  totalText: { fontSize: fontSize.large, fontFamily: type.displaySemi },
+  totalValue: { fontSize: fontSize.large + 2, color: colors.goldGlow, fontFamily: type.display },
   payRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  payLabel: { fontFamily: type.body, fontSize: fontSize.small, color: colors.inkSoft },
-  payValue: { fontFamily: type.bodyMedium, fontSize: fontSize.small, color: colors.inkSoft },
+  payLabel: { fontFamily: type.body, fontSize: fontSize.small, color: colors.capiz, opacity: 0.72 },
+  payValue: { fontFamily: type.bodyMedium, fontSize: fontSize.small, color: colors.capiz, opacity: 0.85 },
   sectionLabel: {
-    fontFamily: type.displaySemi,
+    fontFamily: type.label,
     fontSize: fontSize.micro,
-    letterSpacing: 1.8,
-    color: colors.inkSoft,
+    letterSpacing: 2.2,
+    color: colors.gold,
   },
-  handRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center' },
-  handTile: {
-    width: 22,
-    height: 30,
-    borderRadius: 4,
-    backgroundColor: colors.tileFace,
-    borderWidth: 1,
-    borderColor: colors.tileEdge,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  meldLabel: { fontFamily: type.body, fontSize: 10, color: colors.inkSoft },
+  handRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'flex-end' },
+  meldLabel: { fontFamily: type.body, fontSize: 10, color: colors.capiz, opacity: 0.6 },
   buttons: { flexDirection: 'row', gap: space.sm, marginTop: space.xl },
 });
