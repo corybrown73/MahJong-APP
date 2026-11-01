@@ -1,0 +1,71 @@
+# Tests the rules, builds the browser version of Báhay, and publishes it to
+# GitHub Pages at https://<owner>.github.io/<repo>/.
+#
+# One-time setup: Settings → Pages → Build and deployment → Source: GitHub
+# Actions. To turn on online tables in the browser build, add repository
+# variables (Settings → Secrets and variables → Actions → Variables):
+#   EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
+# The anon key is meant to be public; the room rows stay locked by RLS.
+# Serving from your own domain instead? Set WEB_BASE_URL to "/" so the build
+# is not placed under /<repo>.
+name: Browser build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Rules, AI and room tests
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm -r exec tsc --noEmit
+
+      - name: Build the browser version
+        env:
+          EXPO_BASE_URL: ${{ vars.WEB_BASE_URL || format('/{0}', github.event.repository.name) }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_ROOM_URL: ${{ vars.EXPO_PUBLIC_ROOM_URL }}
+        run: pnpm build:web
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/mobile/dist
+
+  deploy:
+    # Publish only what is on the default branch (or a manual run).
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

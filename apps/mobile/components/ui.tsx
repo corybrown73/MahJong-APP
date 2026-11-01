@@ -46,7 +46,16 @@ export function Screen({
 }) {
   const palette = usePalette();
   const body = (
-    <View style={[{ padding: space.xl, gap: space.lg, flexGrow: 1 }, style]}>{children}</View>
+    <View
+      style={[
+        // Phone-width content, centred: in a desktop browser the menus read as
+        // a column rather than buttons a metre wide.
+        { padding: space.xl, gap: space.lg, flexGrow: 1, width: '100%', maxWidth: 600, alignSelf: 'center' },
+        style,
+      ]}
+    >
+      {children}
+    </View>
   );
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.night }} edges={['top', 'bottom']}>

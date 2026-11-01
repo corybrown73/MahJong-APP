@@ -10,8 +10,17 @@
  * left, the call bar, and your own tiles on a narra rack.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -78,6 +87,11 @@ export type TableViewProps = {
 
 const WIND_NAMES = ['East', 'South', 'West', 'North'] as const;
 
+const KEYBOARD_HELP =
+  'Keyboard: ← → choose a tile · Enter discard it · Esc cancel or undo · ' +
+  'Space pass · C chow · P pong · K kong · M mahjongg · S sort · H hint. ' +
+  'When the hand is over, Enter deals the next one.';
+
 export function TableView(props: TableViewProps) {
   const palette = usePalette();
   const settings = useSettings();
@@ -110,7 +124,7 @@ export function TableView(props: TableViewProps) {
   }, []);
   // Square when the room is square; on a tall phone the table lengthens (up to half
   // again as long) so the extra height goes to bigger, readable discards.
-  const tableWidth = Math.floor(Math.min(tableBox.width - space.sm * 2, 620));
+  const tableWidth = Math.floor(Math.min(tableBox.width - space.sm * 2, 760));
   const tableHeight = Math.floor(Math.min(tableBox.height, tableWidth * 1.5));
 
   const callOptions: CallOption[] = useMemo(
@@ -176,9 +190,101 @@ export function TableView(props: TableViewProps) {
     );
   };
 
+  // In a browser with a keyboard, the whole hand can be played from it. The
+  // listener reads the latest state through a ref so it is bound only once.
+  const { width: windowWidth } = useWindowDimensions();
+  const showKeys = Platform.OS === 'web' && windowWidth >= 700;
+  const keyState = useRef({ props, view, selectedTileId, myTurn, callOptions, declarations });
+  keyState.current = { props, view, selectedTileId, myTurn, callOptions, declarations };
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const { props: p, view: v, selectedTileId: sel, myTurn: turn, callOptions: calls, declarations: decl } =
+        keyState.current;
+      const hand = v.hand;
+      const handled = () => event.preventDefault();
+
+      if (p.settlement) {
+        if (event.key === 'Enter' && p.canDealNextHand && !p.sessionOver) {
+          handled();
+          p.onNextHand();
+        }
+        return;
+      }
+
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'ArrowRight': {
+          if (hand.length === 0) return;
+          handled();
+          const at = hand.findIndex((t) => t.id === sel);
+          const step = event.key === 'ArrowLeft' ? -1 : 1;
+          const next = at === -1 ? (step === 1 ? 0 : hand.length - 1) : (at + step + hand.length) % hand.length;
+          p.onSelectTile(hand[next].id);
+          return;
+        }
+        case 'Enter':
+          if (p.pendingDiscard) return;
+          if (sel && turn) {
+            handled();
+            p.onConfirmDiscard();
+          }
+          return;
+        case 'Escape':
+          if (p.pendingDiscard) p.onUndoDiscard();
+          else if (sel) p.onCancelSelection();
+          return;
+        case ' ':
+          if (p.claimProgress !== null) {
+            handled();
+            p.onPass();
+          }
+          return;
+      }
+
+      const key = event.key.toLowerCase();
+      const call = { c: 'chow', p: 'pung', k: 'kang', m: 'todas' }[key] as CallOption['call'] | undefined;
+      if (call) {
+        const option = calls.find((o) => o.call === call);
+        if (option) {
+          handled();
+          p.onCall(option);
+          return;
+        }
+        if (call === 'todas') {
+          const win = decl.find((a) => a.type === 'DECLARE_TODAS');
+          if (win) {
+            handled();
+            p.onDeclare(win);
+          }
+        }
+        if (call === 'kang') {
+          const kang = decl.find((a) => a.type === 'SECRET_KANG' || a.type === 'SAGASA');
+          if (kang) {
+            handled();
+            p.onDeclare(kang);
+          }
+        }
+        return;
+      }
+      if (key === 's') p.onSort();
+      else if (key === 'h') p.onToggleHint();
+      else if (key === '?') setNote(KEYBOARD_HELP);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.night }} edges={['top', 'bottom']}>
       <Backdrop />
+
+      {/* On a phone this is the whole screen; in a desktop browser it is a
+          centred column, so the table and rack never stretch edge to edge. */}
+      <View style={styles.column}>
 
       <View style={styles.header}>
         <Pressable onPress={props.onLeave} accessibilityRole="button" hitSlop={8} style={styles.leave}>
@@ -347,6 +453,7 @@ export function TableView(props: TableViewProps) {
                 label={`Coach · ${settings.coachMode ? 'on' : 'off'}`}
                 onPress={() => settings.set('coachMode', !settings.coachMode)}
               />
+              {showKeys ? <Tool label="Keys" onPress={() => setNote(KEYBOARD_HELP)} /> : null}
             </View>
 
             {showHint ? (
@@ -367,6 +474,7 @@ export function TableView(props: TableViewProps) {
             ) : null}
           </>
         )}
+      </View>
       </View>
 
       <CallBanner
@@ -471,6 +579,7 @@ export function describeShort(tile: TileModel): string {
 }
 
 const styles = StyleSheet.create({
+  column: { flex: 1, width: '100%', maxWidth: 860, alignSelf: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

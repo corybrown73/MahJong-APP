@@ -28,11 +28,19 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "name": "Báhay — Filipino Mahjong",
+      "shortName": "Báhay",
+      "description": "Filipino 16-tile mahjong at the family table. Play the house in your browser, or open a table and read the code out to family.",
+      "themeColor": "#0C0907",
+      "backgroundColor": "#0C0907",
+      "lang": "en",
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router"
+    ],
     "experiments": {
       "typedRoutes": false
     }

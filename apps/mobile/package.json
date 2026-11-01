@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "bundle-check": "expo export --platform web --output-dir .expo/bundle-check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:web": "node scripts/build-web.mjs",
+    "serve:web": "node scripts/serve-web.mjs"
   },
   "dependencies": {
     "@bahay/ai": "workspace:*",

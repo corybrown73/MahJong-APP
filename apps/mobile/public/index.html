@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover lets the safe-area insets reach the app on notched phones. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>%WEB_TITLE%</title>
+    <meta name="color-scheme" content="dark" />
+    <meta name="application-name" content="Báhay" />
+
+    <!-- Installable: added to a home screen, it opens full screen like the app. -->
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Báhay" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Link previews when the address is shared with family. -->
+    <meta property="og:title" content="Báhay — Filipino Mahjong" />
+    <meta property="og:description" content="Five báhay and an eye. Play the house in your browser, or open a table and read the code out to family." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="icons/icon-512.png" />
+
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        /* Dark from the very first paint: no white flash before the app loads. */
+        background: #0c0907;
+        color: #f4eee3;
+      }
+      body {
+        overflow: hidden;
+        /* No pull-to-refresh or rubber-banding mid-hand. */
+        overscroll-behavior: none;
+        /* Taps are taps: no double-tap zoom delay, no long-press callout on tiles. */
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      input,
+      textarea {
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+      /* Shown until the app takes over #root. */
+      .bh-loading {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: radial-gradient(ellipse 95% 70% at 50% 0%, rgba(110, 47, 27, 0.55), #15100d 55%, #0c0907);
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+      .bh-loading h1 {
+        margin: 0;
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+      }
+      .bh-loading p {
+        margin: 0;
+        font: 600 11px/1 system-ui, sans-serif;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: #c9a15a;
+      }
+      .bh-loading svg {
+        animation: bh-breathe 1.6s ease-in-out infinite;
+      }
+      @keyframes bh-breathe {
+        50% {
+          transform: translateY(-4px);
+          opacity: 0.8;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .bh-loading svg {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>Báhay needs JavaScript to deal the tiles.</noscript>
+    <div id="root">
+      <div class="bh-loading" role="status" aria-label="Loading Báhay">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 112" width="72" height="81" aria-hidden="true"><defs><linearGradient id="face" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFEF9"/><stop offset="1" stop-color="#E9DFC7"/></linearGradient><linearGradient id="jade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2C937A"/><stop offset="1" stop-color="#0C4A3B"/></linearGradient><linearGradient id="roof" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9A4A2C"/><stop offset="1" stop-color="#3A160C"/></linearGradient><linearGradient id="brass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EFD08F"/><stop offset="1" stop-color="#7D5E28"/></linearGradient></defs><rect x="20" y="40" width="60" height="70" rx="9" fill="url(#jade)"/><rect x="20" y="40" width="60" height="61" rx="9" fill="url(#face)"/><rect x="21" y="41" width="58" height="59" rx="8" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="1.2"/><circle cx="50.6" cy="71.6" r="13" fill="none" stroke="#fff" stroke-width="4.5" opacity=".9"/><circle cx="50" cy="71" r="13" fill="none" stroke="#C23B22" stroke-width="4.5"/><circle cx="50" cy="71" r="5.2" fill="#C23B22"/><path d="M2 48 L50 5 L98 48 L80 48 L50 21 L20 48 Z" fill="url(#roof)"/><path d="M50 5 L98 48" stroke="url(#brass)" stroke-width="2.2" stroke-linecap="round"/><path d="M50 5 L2 48" stroke="url(#brass)" stroke-width="2.2" stroke-linecap="round"/><circle cx="50" cy="5.5" r="3.4" fill="url(#brass)"/></svg>
+        <h1>Báhay</h1>
+        <p>Shuffling the tiles</p>
+      </div>
+    </div>
+    <script>
+      // Offline play once installed. Only on a secure origin; never in dev.
+      if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function () {});
+        });
+      }
+    </script>
+  </body>
+</html>

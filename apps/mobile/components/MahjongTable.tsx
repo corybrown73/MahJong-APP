@@ -102,6 +102,7 @@ export const MahjongTable = memo(function MahjongTable({
           <React.Fragment key={seat}>
             <DiscardZone
               rect={g.zones[side]}
+              maxTile={Math.max(26, Math.min(g.width, g.height) * 0.062)}
               tiles={discards.map((d) => d.tile)}
               lastId={lastId}
               palette={palette}
@@ -560,12 +561,15 @@ const WallRing = memo(function WallRing({
 
 const DiscardZone = memo(function DiscardZone({
   rect,
+  maxTile,
   tiles,
   lastId,
   palette,
   onTap,
 }: {
   rect: Rect4;
+  /** Discards grow with the table, so a desktop table is not covered in crumbs. */
+  maxTile: number;
   tiles: TileModel[];
   lastId: string | null;
   palette: Palette;
@@ -573,7 +577,7 @@ const DiscardZone = memo(function DiscardZone({
 }) {
   const pad = 3;
   const inner = { x: 0, y: 0, w: rect.w - pad * 2, h: rect.h - pad * 2 };
-  const w = Math.floor(fitTiles(inner, tiles.length, 26) * 2) / 2;
+  const w = Math.floor(fitTiles(inner, tiles.length, maxTile) * 2) / 2;
   return (
     <View
       style={{
@@ -635,9 +639,9 @@ const EdgeBand = memo(function EdgeBand({
   // along the band is the tile's width and its depth is the tile's height.
   const meldW = Math.max(
     10,
-    Math.min(meldDepth / TILE_RATIO, meldTiles ? usable / meldTiles : 99, 24),
+    Math.min(meldDepth / TILE_RATIO, meldTiles ? usable / meldTiles : 99, Math.max(24, Math.min(g.width, g.height) * 0.05)),
   );
-  const standAlong = Math.min(16, (length * 0.9) / Math.max(concealed, 1));
+  const standAlong = Math.min(Math.max(16, Math.min(g.width, g.height) * 0.034), (length * 0.9) / Math.max(concealed, 1));
 
   const edgeOf = (depthFromRim: number, thickness: number) => {
     // Positions the strip `depthFromRim` in from the rim, `thickness` deep.
@@ -763,7 +767,7 @@ function NamePlate({
 }) {
   const horizontal = side === 'top' || side === 'bottom';
   const height = g.rim * 0.82;
-  const width = Math.min((horizontal ? g.felt.w : g.felt.h) * 0.62, 200);
+  const width = Math.min((horizontal ? g.felt.w : g.felt.h) * 0.62, Math.max(200, Math.min(g.width, g.height) * 0.42));
   const rotate = { bottom: '0deg', top: '0deg', left: '-90deg', right: '90deg' }[side];
   const position = horizontal
     ? {
