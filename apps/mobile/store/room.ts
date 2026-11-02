@@ -71,6 +71,10 @@ let unsubscribe: (() => void) | null = null;
 let discardTimer: ReturnType<typeof setTimeout> | null = null;
 let lastEventAt = 0;
 let recordedHand: string | null = null;
+/** The decision point a win was last taken at, so it is only taken once. */
+let autoWinKey: string | null = null;
+/** The beat between a win appearing and it being called for the player. */
+const AUTO_WIN_MS = 700;
 
 export const useRoom = create<RoomStore>((set, get) => {
   /**
@@ -100,6 +104,14 @@ export const useRoom = create<RoomStore>((set, get) => {
           seat: event.seat,
           headline: CALL_HEADLINES[action.call],
           detail: view.seats[event.seat]?.name ?? '',
+        };
+      }
+      if (action.type === 'DECLARE_TODAS') {
+        lastEventAt = event.at;
+        return {
+          seat: event.seat,
+          headline: 'MAHJONGG',
+          detail: 'búnot — off the wall',
         };
       }
       if (action.type === 'SECRET_KANG' || action.type === 'SAGASA') {
@@ -132,8 +144,31 @@ export const useRoom = create<RoomStore>((set, get) => {
       if (!view.settlement) recordedHand = null;
 
       set({ view, status, banner });
+      maybeTakeWin(transport, view);
     });
     set({ transport });
+  }
+
+  /**
+   * At a practice table — playing alone, the house in every other chair — a
+   * win is taken for the player when they have asked for that. A real table
+   * with family at it is left to the player: calling is part of the game.
+   */
+  function maybeTakeWin(transport: RoomTransport, view: RoomView): void {
+    if (transport.kind !== 'local' || !useSettings.getState().autoMahjongg) return;
+    if (!view.game || view.settlement) return;
+    const win = legalForView(view).find(
+      (a) => a.type === 'DECLARE_TODAS' || (a.type === 'CLAIM' && a.call === 'todas'),
+    );
+    if (!win) return;
+    const key = `${view.code}:${view.game.handNumber}:${view.game.phase.name}:${view.game.discards.length}:${view.game.hand.length}`;
+    if (autoWinKey === key) return;
+    autoWinKey = key;
+    const speed = useSettings.getState().speed;
+    setTimeout(() => {
+      if (get().transport !== transport) return;
+      void command({ type: 'GAME_ACTION', action: win } as never);
+    }, AUTO_WIN_MS * speedMultiplier[speed]);
   }
 
   async function command(partial: Omit<RoomCommand, 'at' | 'playerId'>): Promise<void> {

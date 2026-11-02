@@ -15,7 +15,7 @@ export default function SettingsScreen() {
       <Card>
         <Term>Pace</Term>
         <Muted style={{ fontSize: fontSize.small }}>
-          Relaxed is the default: slow enough to follow every call.
+          Relaxed is the default: slow enough to follow every discard and call.
         </Muted>
         <Choice
           label=""
@@ -26,6 +26,16 @@ export default function SettingsScreen() {
             { value: 'fast' as const, label: 'Fast' },
           ]}
           onChange={(value) => settings.set('speed', value)}
+        />
+      </Card>
+
+      <Card>
+        <Term>Playing alone</Term>
+        <Toggle
+          label="Call mahjongg for me"
+          description="Takes a winning discard or a winning draw the moment it is there, so a slow claim window never costs you a win. Turn it off to hold out for a bigger hand."
+          value={settings.autoMahjongg}
+          onChange={(value) => settings.set('autoMahjongg', value)}
         />
       </Card>
 

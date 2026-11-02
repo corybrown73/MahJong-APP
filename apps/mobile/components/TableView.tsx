@@ -43,7 +43,7 @@ import { describeMeld } from './Seats';
 import { Tile } from './Tile';
 import { WinScreen } from './WinScreen';
 import { Backdrop, Body, Muted, Term, usePalette } from './ui';
-import { fontSize, onBrass, radius, space, type } from '../theme/tokens';
+import { fontSize, motion, onBrass, radius, space, speedMultiplier, type } from '../theme/tokens';
 import { useSettings } from '../store/settings';
 import type { Banner } from '../store/game';
 
@@ -115,6 +115,22 @@ export function TableView(props: TableViewProps) {
   const [inspecting, setInspecting] = useState<TileModel | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [tableBox, setTableBox] = useState({ width: 0, height: 0 });
+
+  // A win is announced on the table first — the banner, the lit seat — and the
+  // scorecard follows a beat later, rather than slamming down the instant the
+  // winning tile lands.
+  const [revealed, setRevealed] = useState<Settlement | null>(null);
+  useEffect(() => {
+    if (!settlement) {
+      setRevealed(null);
+      return;
+    }
+    const wait = settings.reducedMotion
+      ? 300
+      : Math.round(motion.winReveal * speedMultiplier[settings.speed]);
+    const id = setTimeout(() => setRevealed(settlement), wait);
+    return () => clearTimeout(id);
+  }, [settlement, settings.reducedMotion, settings.speed]);
 
   const onTableLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -483,7 +499,7 @@ export function TableView(props: TableViewProps) {
         onDone={props.onBannerDone}
       />
 
-      {settlement ? (
+      {settlement && revealed === settlement ? (
         <WinScreen
           settlement={settlement}
           names={names}

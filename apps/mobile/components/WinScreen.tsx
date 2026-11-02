@@ -72,7 +72,9 @@ export function WinScreen({
     ? 'The wall ran out — nobody pays'
     : coWinners.length > 0
       ? `${winnerNames.join(' and ')} both win the hand`
-      : `${winnerNames[0]} wins the hand`;
+      : winnerNames[0] === 'You'
+        ? 'You win the hand'
+        : `${winnerNames[0]} wins the hand`;
 
   let line = 0;
   const nextLine = () => visibleLines >= ++line;

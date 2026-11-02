@@ -9,7 +9,8 @@ Three rules worth keeping:
    component. Ask `legalActions(state, seat)` and render the answer.
 2. **Nothing acts on the player's tiles for them.** No auto-sort, no auto-meld,
    no auto-discard. The claim-window timer dispatches `PASS` on the player's
-   behalf and nothing else.
+   behalf, and the one exception the player can opt out of is the
+   `autoMahjongg` setting: playing alone, a win is taken for them.
 
 3. **It ships to the browser too.** The same screens run on iOS, Android and
    the web. Guard browser-only code with `Platform.OS === 'web'`, check wide

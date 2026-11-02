@@ -65,7 +65,7 @@ export function CallBanner({
           style,
         ]}
       >
-        <Text style={styles.who}>{who.toUpperCase()} CALLS</Text>
+        <Text style={styles.who}>{who === 'You' ? 'YOU CALL' : `${who.toUpperCase()} CALLS`}</Text>
         <Text style={styles.what}>{spaced(banner.headline)}</Text>
         <Text style={styles.detail}>{banner.detail}</Text>
       </Animated.View>

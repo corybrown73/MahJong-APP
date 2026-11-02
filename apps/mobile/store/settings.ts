@@ -20,6 +20,12 @@ export type Settings = {
   coachMode: boolean;
   /** Two-step discard is always on; this controls the undo grace period. */
   undoWindow: boolean;
+  /**
+   * Playing alone, take every win the moment it is there — a winning discard
+   * or a winning draw — rather than risk the claim window running out. On by
+   * default; turn it off to hold out for a bigger hand.
+   */
+  autoMahjongg: boolean;
 };
 
 const DEFAULTS: Settings = {
@@ -32,6 +38,7 @@ const DEFAULTS: Settings = {
   language: 'en',
   coachMode: false,
   undoWindow: true,
+  autoMahjongg: true,
 };
 
 type SettingsStore = Settings & {
@@ -53,7 +60,9 @@ export const useSettings = create<SettingsStore>((set, get) => ({
       loadJson<Partial<Ruleset> | null>(KEYS.ruleset, null),
     ]);
     // A config saved by an older build gains any newly added options here.
-    set({ ...settings, ruleset: normalizeRuleset(storedRuleset), hydrated: true });
+    // Settings saved by an older build gain any newly added options from the
+    // defaults, rather than reading them as off.
+    set({ ...DEFAULTS, ...settings, ruleset: normalizeRuleset(storedRuleset), hydrated: true });
   },
 
   set: (key, value) => {

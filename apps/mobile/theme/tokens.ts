@@ -116,18 +116,23 @@ export const motion = {
   meldExposure: 420,
   meldStagger: 60,
   bannerIn: 200,
-  bannerHold: 900,
+  bannerHold: 1000,
   bannerOut: 200,
-  winReveal: 600,
+  /** How long a win is announced on the table before the scorecard comes up. */
+  winReveal: 1400,
   settlementLine: 120,
-  claimWindow: 2500,
-  undoWindow: 1500,
+  claimWindow: 3000,
+  undoWindow: 1100,
 } as const;
 
+/**
+ * Relaxed — the default — gives a 4.2s claim window and lets the house take a
+ * second or more over each move, so every discard can be followed.
+ */
 export const speedMultiplier = {
-  relaxed: 1,
-  normal: 0.7,
-  fast: 0.45,
+  relaxed: 1.4,
+  normal: 1,
+  fast: 0.6,
 } as const;
 
 export type GameSpeed = keyof typeof speedMultiplier;

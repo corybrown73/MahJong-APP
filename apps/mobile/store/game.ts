@@ -36,6 +36,9 @@ import { useStats } from './stats';
 
 export const HUMAN: SeatId = 0;
 
+/** The beat between a win appearing and it being called for the player. */
+const AUTO_WIN_MS = 700;
+
 /** The house book's words for a call, used on the announcement banner. */
 const CALL_HEADLINES: Record<CallType, string> = {
   chow: 'CHOW',
@@ -150,8 +153,19 @@ export const useGame = create<GameStore>((set, get) => {
         scheduleAi(ai[0], myEpoch, hold);
         return;
       }
+      // A winning discard, and the player has asked us to take wins for them:
+      // call it after a beat long enough to see which tile it was.
+      const win = autoWin(state);
+      if (win) {
+        timer = setTimeout(() => {
+          if (epoch !== myEpoch) return;
+          get().dispatch(win);
+        }, hold + scaled(AUTO_WIN_MS, speed));
+        return;
+      }
       // Only the player is left to answer: run a visible window, then pass for
-      // them. This timer is the one thing the app ever does on their behalf.
+      // them. Apart from taking a win when asked to, this is the only thing the
+      // app ever does on their behalf.
       const windowMs = scaled(motion.claimWindow, speed);
       set({ claimEndsAt: Date.now() + hold + windowMs });
       timer = setTimeout(() => {
@@ -178,7 +192,28 @@ export const useGame = create<GameStore>((set, get) => {
         if (epoch !== myEpoch) return;
         get().dispatch({ type: 'DRAW', seat: HUMAN });
       }, hold + scaled(260, speed));
+      return;
     }
+
+    // Drew the winning tile (or was dealt a win): declare it, after a beat so
+    // the tile can be seen arriving.
+    const win = autoWin(state);
+    if (win) {
+      timer = setTimeout(() => {
+        if (epoch !== myEpoch) return;
+        get().dispatch(win);
+      }, hold + scaled(AUTO_WIN_MS, speed));
+    }
+  }
+
+  /** The win to take for the player, if they have one and want it taken. */
+  function autoWin(state: GameState): Action | null {
+    if (!useSettings.getState().autoMahjongg) return null;
+    return (
+      legalActions(state, HUMAN).find(
+        (a) => a.type === 'DECLARE_TODAS' || (a.type === 'CLAIM' && a.call === 'todas'),
+      ) ?? null
+    );
   }
 
   function scheduleAi(seat: SeatId, myEpoch: number, hold: number) {
@@ -215,6 +250,20 @@ export const useGame = create<GameStore>((set, get) => {
       if (event.type === 'KANG_DECLARED') {
         const label = event.variant === 'secret' ? 'SECRET' : event.variant === 'sagasa' ? 'SAGASA' : 'KONG';
         return { seat: event.seat, headline: label, detail: faceLabel(event.face) };
+      }
+    }
+    // A win off the wall is declared, not called, so it has no CALLED event.
+    // It still deserves its moment before the scorecard.
+    for (const event of state.events) {
+      if (event.type === 'HAND_OVER' && event.settlement.winner !== null) {
+        const { winner, winType } = event.settlement;
+        if (winType === 'bunot' || winType === 'bisaklat') {
+          return {
+            seat: winner,
+            headline: winType === 'bisaklat' ? 'BISAKLAT' : 'MAHJONGG',
+            detail: winType === 'bisaklat' ? 'the dealt hand' : 'búnot — off the wall',
+          };
+        }
       }
     }
     return null;
