@@ -34,7 +34,7 @@ import {
   type Settlement,
   type Tile as TileModel,
 } from '@bahay/engine';
-import { shanten } from '@bahay/ai';
+import { KAPITBAHAY, scoreDiscards, shanten } from '@bahay/ai';
 import { CallBanner } from './CallBanner';
 import { CallBar, type CallOption } from './CallBar';
 import { MahjongTable, seatWind } from './MahjongTable';
@@ -45,6 +45,7 @@ import { WinScreen } from './WinScreen';
 import { Backdrop, Body, Muted, Term, usePalette } from './ui';
 import { fontSize, motion, onBrass, radius, space, speedMultiplier, type } from '../theme/tokens';
 import { useSettings } from '../store/settings';
+import { playSound } from '../lib/sound';
 import type { Banner } from '../store/game';
 
 export type TableViewProps = {
@@ -132,6 +133,22 @@ export function TableView(props: TableViewProps) {
     return () => clearTimeout(id);
   }, [settlement, settings.reducedMotion, settings.speed]);
 
+  // Sounds follow the table, not the buttons, so every seat's discard clacks
+  // and online play sounds the same as solo.
+  const discardCount = view.discards.length;
+  const lastDiscards = useRef(discardCount);
+  useEffect(() => {
+    if (settings.sound && discardCount > lastDiscards.current) playSound('discard');
+    lastDiscards.current = discardCount;
+  }, [discardCount, settings.sound]);
+  useEffect(() => {
+    // A win has its own flourish; the banner announcing it stays quiet.
+    if (settings.sound && banner && !settlement) playSound('call');
+  }, [banner, settings.sound]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (settings.sound && settlement) playSound('win');
+  }, [settlement, settings.sound]);
+
   const onTableLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     setTableBox((box) =>
@@ -193,6 +210,31 @@ export function TableView(props: TableViewProps) {
   const myTurn = view.phase.name === 'AWAITING_DISCARD' && view.phase.seat === yourSeat;
   const seat = yourSeat ?? 0;
   const myChips = view.players[seat].chips;
+
+  // Tap a tile to lift it, tap the same tile again to throw it. The confirm
+  // button stays for anyone who prefers it; Rack never discards on one tap.
+  const onSelectTile = useCallback(
+    (tileId: string) => {
+      if (tileId === selectedTileId && myTurn && !pendingDiscard) {
+        if (settings.haptics) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        props.onConfirmDiscard();
+        return;
+      }
+      if (settings.sound) playSound('select');
+      props.onSelectTile(tileId);
+    },
+    [myTurn, pendingDiscard, props, selectedTileId, settings.haptics, settings.sound],
+  );
+
+  // The hint's discard advice uses the same scoring the steady house player
+  // uses — fastest route to a ready hand, most live tiles to finish it, and a
+  // little caution — so a beginner learns the way the table actually plays.
+  // Only computed while the hint is open; it never moves a tile by itself.
+  const advice = useMemo(() => {
+    if (!showHint || !myTurn) return null;
+    const best = scoreDiscards(view, legal, KAPITBAHAY)[0];
+    return best ?? null;
+  }, [legal, myTurn, showHint, view]);
 
   const describeSeat = (target: SeatId) => {
     const player = view.players[target];
@@ -344,6 +386,86 @@ export function TableView(props: TableViewProps) {
             onTapSeat={describeSeat}
           />
         ) : null}
+        {/* The hint and the discard bar float over the foot of the table rather
+            than pushing the rack around, so the tile under your thumb never
+            moves between the two taps. */}
+        <View style={styles.floating} pointerEvents="box-none">
+          {showHint && yourSeat !== null ? (
+            <View style={styles.hint}>
+              {advice ? (
+                <View style={styles.adviceRow}>
+                  <Muted style={{ fontSize: fontSize.small, flex: 1 }}>
+                    Throw the {describeShort(advice.tile)} —{' '}
+                    {advice.shantenAfter <= 0
+                      ? 'that leaves you ready to win'
+                      : `that leaves you ${advice.shantenAfter} tile${advice.shantenAfter === 1 ? '' : 's'} from a ready hand`}
+                    {advice.acceptance > 0
+                      ? `, with ${advice.acceptance} live tile${advice.acceptance === 1 ? '' : 's'} that help.`
+                      : '.'}
+                  </Muted>
+                  {advice.tile.id !== selectedTileId ? (
+                    <Pressable
+                      onPress={() => props.onSelectTile(advice.tile.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Lift the ${describeShort(advice.tile)}`}
+                      hitSlop={8}
+                    >
+                      <Text style={[styles.undoText, { color: palette.goldGlow }]}>SHOW ME</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : waits.length === 0 ? (
+                <Muted style={{ fontSize: fontSize.small }}>
+                  {distance} tile{distance === 1 ? '' : 's'} from a ready hand. Open the hint on
+                  your turn and it will suggest a discard.
+                </Muted>
+              ) : (
+                <Muted style={{ fontSize: fontSize.small }}>
+                  Waiting on{' '}
+                  {waits
+                    .map((face) => `${faceLabel(face)} (${unseenCount(view, face)} unseen)`)
+                    .join(' · ')}
+                </Muted>
+              )}
+            </View>
+          ) : null}
+          {pendingDiscard ? (
+            <View style={[styles.undo, { borderColor: 'rgba(201,161,90,0.35)' }]}>
+              <Body style={{ flex: 1 }}>Discarding…</Body>
+              <Pressable onPress={props.onUndoDiscard} accessibilityRole="button" hitSlop={8}>
+                <Text style={[styles.undoText, { color: palette.goldGlow }]}>UNDO</Text>
+              </Pressable>
+            </View>
+          ) : selected && myTurn ? (
+            <View style={styles.confirmRow}>
+              <Pressable
+                onPress={() => {
+                  if (settings.haptics) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  props.onConfirmDiscard();
+                }}
+                style={[
+                  styles.confirm,
+                  {
+                    backgroundColor: palette.gold,
+                    borderTopColor: palette.goldGlow,
+                    borderBottomColor: palette.brassDark,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Discard ${describeShort(selected)}`}
+              >
+                <Text style={styles.confirmText}>DISCARD {describeShort(selected).toUpperCase()}</Text>
+              </Pressable>
+              <Pressable
+                onPress={props.onCancelSelection}
+                style={[styles.cancel, { borderColor: 'rgba(244,238,227,0.2)' }]}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.cancelText, { color: palette.capiz }]}>CANCEL</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       {settings.coachMode && yourSeat !== null ? (
@@ -392,43 +514,6 @@ export function TableView(props: TableViewProps) {
         </View>
       ) : null}
 
-      {pendingDiscard ? (
-        <View style={[styles.undo, { borderColor: 'rgba(201,161,90,0.35)' }]}>
-          <Body style={{ flex: 1 }}>Discarding…</Body>
-          <Pressable onPress={props.onUndoDiscard} accessibilityRole="button" hitSlop={8}>
-            <Text style={[styles.undoText, { color: palette.goldGlow }]}>UNDO</Text>
-          </Pressable>
-        </View>
-      ) : selected && myTurn ? (
-        <View style={styles.confirmRow}>
-          <Pressable
-            onPress={() => {
-              if (settings.haptics) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              props.onConfirmDiscard();
-            }}
-            style={[
-              styles.confirm,
-              {
-                backgroundColor: palette.gold,
-                borderTopColor: palette.goldGlow,
-                borderBottomColor: palette.brassDark,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={`Discard ${describeShort(selected)}`}
-          >
-            <Text style={styles.confirmText}>DISCARD {describeShort(selected).toUpperCase()}</Text>
-          </Pressable>
-          <Pressable
-            onPress={props.onCancelSelection}
-            style={[styles.cancel, { borderColor: 'rgba(244,238,227,0.2)' }]}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.cancelText, { color: palette.capiz }]}>CANCEL</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       <View style={styles.rackArea}>
         {yourSeat === null ? (
           <Muted style={{ textAlign: 'center', paddingVertical: space.lg }}>
@@ -442,7 +527,7 @@ export function TableView(props: TableViewProps) {
                 selectedTileId={selectedTileId}
                 justDrewId={justDrew}
                 joker={view.joker}
-                onSelect={props.onSelectTile}
+                onSelect={onSelectTile}
                 onMove={props.onMoveTile}
                 onMagnify={setMagnified}
                 disabled={!!settlement}
@@ -472,22 +557,6 @@ export function TableView(props: TableViewProps) {
               {showKeys ? <Tool label="Keys" onPress={() => setNote(KEYBOARD_HELP)} /> : null}
             </View>
 
-            {showHint ? (
-              <View style={styles.hint}>
-                {waits.length === 0 ? (
-                  <Muted style={{ fontSize: fontSize.small }}>
-                    Not waiting on anything yet — {distance} tile{distance === 1 ? '' : 's'} to go.
-                  </Muted>
-                ) : (
-                  <Muted style={{ fontSize: fontSize.small }}>
-                    Waiting on{' '}
-                    {waits
-                      .map((face) => `${faceLabel(face)} (${unseenCount(view, face)} unseen)`)
-                      .join(' · ')}
-                  </Muted>
-                )}
-              </View>
-            ) : null}
           </>
         )}
       </View>
@@ -643,11 +712,17 @@ const styles = StyleSheet.create({
     letterSpacing: 1.6,
     color: onBrass,
   },
+  floating: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: space.xs,
+    zIndex: 20,
+  },
   confirmRow: {
     flexDirection: 'row',
     gap: space.sm,
     paddingHorizontal: space.md,
-    paddingTop: space.sm,
   },
   confirm: {
     flex: 1,
@@ -664,6 +739,7 @@ const styles = StyleSheet.create({
     color: onBrass,
   },
   cancel: {
+    backgroundColor: 'rgba(28,20,15,0.94)',
     paddingVertical: 13,
     paddingHorizontal: space.lg,
     borderRadius: radius.card,
@@ -674,12 +750,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: space.md,
-    marginTop: space.sm,
     paddingVertical: 12,
     paddingHorizontal: space.lg,
     borderRadius: radius.card,
     borderWidth: 1,
-    backgroundColor: 'rgba(255,236,214,0.04)',
+    backgroundColor: 'rgba(28,20,15,0.94)',
     gap: space.md,
   },
   undoText: { fontFamily: type.label, fontSize: fontSize.small, letterSpacing: 1.6 },
@@ -709,7 +784,17 @@ const styles = StyleSheet.create({
     letterSpacing: 1.3,
     textTransform: 'uppercase',
   },
-  hint: { paddingHorizontal: space.lg },
+  hint: {
+    marginHorizontal: space.md,
+    marginBottom: space.sm,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: 'rgba(201,161,90,0.35)',
+    backgroundColor: 'rgba(28,20,15,0.94)',
+  },
+  adviceRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(8,6,5,0.78)',

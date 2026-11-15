@@ -1,7 +1,7 @@
 /**
  * The rack — the player's own tiles.
  *
- * Tap to select, tap again (or the confirm button) to discard: never a single
+ * Tap to select, tap the same tile again (or the confirm button) to discard: never a single
  * tap, because a mis-tapped discard is the single most infuriating misplay in
  * every existing app. Drag to reorder. Long-press to magnify the tile under the
  * thumb. Nothing here ever rearranges itself.
@@ -24,6 +24,8 @@ import { Tile, TILE_RATIO, describeTile } from './Tile';
 import { usePalette } from './ui';
 
 const OVERLAP = 0.84; // tiles sit 16% over their neighbour
+const NARROW_OVERLAP = 0.78; // phones: a little deeper, for bigger tiles
+const DRAWN_GAP = 14;
 
 type Props = {
   tiles: TileModel[];
@@ -54,11 +56,20 @@ export function Rack({
   // n tiles that each overlap the next span w·(n·OVERLAP + 1 − OVERLAP), plus
   // the gap that sets the drawn tile apart. Solve for w so the rack fits.
   const count = Math.max(tiles.length, 1);
+  // On a phone every pixel of width goes to the tiles: tighter side padding and
+  // a deeper overlap (the numeral corner stays visible) buy each tile ~20%.
+  const narrow = width < 500;
+  const overlap = narrow ? NARROW_OVERLAP : OVERLAP;
+  const padding = narrow ? space.xs : space.md;
+  // The drawn tile only stands apart while it is still at the end of the rack;
+  // once the hand is sorted it sits among the others with no gap.
+  const drawnIndex = justDrewId ? tiles.findIndex((t) => t.id === justDrewId) : -1;
+  const drawnApart = drawnIndex !== -1 && drawnIndex === tiles.length - 1;
   // The table screen centres a column no wider than 860 in a desktop browser.
-  const available = Math.min(width, 860) - space.md * 2 - (justDrewId ? 14 : 0);
-  const fit = available / (count * OVERLAP + (1 - OVERLAP));
+  const available = Math.min(width, 860) - padding * 2 - (drawnApart ? DRAWN_GAP : 0);
+  const fit = available / (count * overlap + (1 - overlap));
   const tileWidth = Math.max(18, Math.floor(Math.min(52, fit * tileScale)));
-  const stepWidth = Math.round(tileWidth * OVERLAP);
+  const stepWidth = Math.round(tileWidth * overlap);
   const height = Math.round(tileWidth * TILE_RATIO) + 14;
 
   const isJoker = useCallback(
@@ -77,7 +88,7 @@ export function Rack({
   );
 
   return (
-    <View style={[styles.rack, { height }]}>
+    <View style={[styles.rack, { height, paddingHorizontal: padding }]}>
       {tiles.map((tile, index) => (
         <RackTile
           key={tile.id}
@@ -89,6 +100,7 @@ export function Rack({
           palette={palette}
           selected={tile.id === selectedTileId}
           drawn={tile.id === justDrewId}
+          apart={drawnApart && index === drawnIndex}
           joker={isJoker(tile)}
           boldEngraving={highContrast}
           reducedMotion={reducedMotion}
@@ -113,6 +125,8 @@ type RackTileProps = {
   palette: ReturnType<typeof usePalette>;
   selected: boolean;
   drawn: boolean;
+  /** Set the tile a little apart from the rest: the fresh draw, still at the end. */
+  apart: boolean;
   joker: boolean;
   boldEngraving: boolean;
   reducedMotion: boolean;
@@ -133,6 +147,7 @@ function RackTile({
   palette,
   selected,
   drawn,
+  apart,
   joker,
   boldEngraving,
   reducedMotion,
@@ -200,7 +215,7 @@ function RackTile({
       <Animated.View
         style={[
           { marginLeft: index === 0 ? 0 : step - width, marginTop: 8 },
-          drawn ? { marginLeft: (index === 0 ? 0 : step - width) + 14 } : null,
+          apart ? { marginLeft: (index === 0 ? 0 : step - width) + DRAWN_GAP } : null,
           style,
         ]}
       >
@@ -231,6 +246,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    paddingHorizontal: space.md,
   },
 });
