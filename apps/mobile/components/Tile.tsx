@@ -91,7 +91,12 @@ export const Tile = memo(function Tile({
   }, [selected, reducedMotion, lift]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -Math.round(width * 0.38) * lift.value }],
+    // On a phone the rack's tiles are small, so the chosen tile also grows:
+    // you should be able to read what you are about to throw away.
+    transform: [
+      { translateY: -Math.round(width * (width < 36 ? 0.55 : 0.38)) * lift.value },
+      { scale: 1 + (width < 36 ? 0.35 : 0.06) * lift.value },
+    ],
   }));
 
   const glowStyle = useAnimatedStyle(() => ({ opacity: 0.25 + 0.6 * pulse.value }));

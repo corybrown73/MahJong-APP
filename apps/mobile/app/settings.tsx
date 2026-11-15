@@ -69,7 +69,7 @@ export default function SettingsScreen() {
         <Term>Sound and touch</Term>
         <Toggle
           label="Sound"
-          description="Off by default. Calls are announced visually first."
+          description="Tile clacks, a chime for calls and a flourish for a win. Follows the silent switch and never stops your music."
           value={settings.sound}
           onChange={(value) => settings.set('sound', value)}
         />
