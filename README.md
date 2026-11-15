@@ -88,12 +88,27 @@ npx eas-cli submit --platform ios                        # App Store Connect
 
 ### Online tables
 
-Browser players and app players sit at the same tables. Set
-`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (or
-`EXPO_PUBLIC_ROOM_URL` for a self-hosted room server, `pnpm room:dev`) when
-building; for the published browser build, add them as repository variables.
-Without them, the practice table — the same room code, run on the device —
-still works.
+Browser players and app players sit at the same tables, served by a Supabase
+Edge Function (`supabase/functions/bahay-room`) that runs the same rules code
+as the app.
+
+**Deployed by GitHub.** Add one repository secret, `SUPABASE_ACCESS_TOKEN`
+(a personal access token from supabase.com → Account → Access Tokens), and
+every push to the default branch:
+
+1. checks the Supabase project is awake (free projects pause after a week
+   idle — restore it from the Supabase dashboard if the run says so),
+2. creates the rooms table if it is missing,
+3. bundles and deploys the room server,
+4. opens a test table on it to prove it answers,
+5. builds the browser version pointed at it.
+
+The token stays in GitHub. A different Supabase project? Set the repository
+variable `SUPABASE_PROJECT_REF`. For phone builds, set
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (both are
+public values), or `EXPO_PUBLIC_ROOM_URL` for a self-hosted room server
+(`pnpm room:dev` runs one locally). Without any of them the practice table —
+the same room code, run on the device — still works.
 
 ## What the player is promised
 

@@ -1,13 +1,18 @@
-# Tests the rules, builds the browser version of Báhay, and publishes it to
-# GitHub Pages at https://<owner>.github.io/<repo>/.
+# Tests the rules, deploys the online room server, builds the browser version
+# of Báhay, and publishes it to GitHub Pages at https://<owner>.github.io/<repo>/.
 #
-# One-time setup: Settings → Pages → Build and deployment → Source: GitHub
-# Actions. To turn on online tables in the browser build, add repository
-# variables (Settings → Secrets and variables → Actions → Variables):
-#   EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
-# The anon key is meant to be public; the room rows stay locked by RLS.
-# Serving from your own domain instead? Set WEB_BASE_URL to "/" so the build
-# is not placed under /<repo>.
+# One-time setup:
+#   1. Settings → Pages → Build and deployment → Source: GitHub Actions.
+#   2. For online tables, Settings → Secrets and variables → Actions → New
+#      repository secret: SUPABASE_ACCESS_TOKEN, a personal access token from
+#      https://supabase.com/dashboard/account/tokens. The token stays in
+#      GitHub; nothing else needs copying. Using a project other than the
+#      default below? Add a repository variable SUPABASE_PROJECT_REF.
+#
+# Without the token the game still publishes, with solo play and the practice
+# table; the online buttons explain that no server is configured.
+# Serving from your own domain instead of /<repo>? Set the variable
+# WEB_BASE_URL to "/".
 name: Browser build
 
 on:
@@ -22,32 +27,149 @@ concurrency:
   group: web-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || 'tzupidrczfnowincrogs' }}
+
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
-
       - name: Rules, AI and room tests
         run: pnpm test
-
       - name: Typecheck
         run: pnpm -r exec tsc --noEmit
+
+  # The room server: the same rules code, bundled and deployed as a Supabase
+  # Edge Function. Runs only for the default branch, and only once the access
+  # token has been added.
+  room:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    outputs:
+      url: ${{ steps.keys.outputs.url }}
+      anon_key: ${{ steps.keys.outputs.anon_key }}
+    steps:
+      - name: Is the room server set up?
+        if: env.SUPABASE_ACCESS_TOKEN == ''
+        run: echo "::notice title=Online tables are off::Add the SUPABASE_ACCESS_TOKEN repository secret to deploy the room server. Solo play and the practice table are unaffected."
+
+      - uses: actions/checkout@v4
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+      - uses: pnpm/action-setup@v4
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+      - uses: actions/setup-node@v4
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: env.SUPABASE_ACCESS_TOKEN != ''
+        run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        with:
+          # Pinned: CLI 3 changed how commands choose a project.
+          version: 3.1.0
+
+      - name: Is the project awake?
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        run: |
+          status=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF" | jq -r '.status // .message')
+          echo "Project $SUPABASE_PROJECT_REF: $status"
+          case "$status" in
+            ACTIVE_HEALTHY) ;;
+            INACTIVE|PAUSED)
+              echo "::error title=Supabase project is paused::Free projects pause after a week idle. Restore it at https://supabase.com/dashboard/project/$SUPABASE_PROJECT_REF, then re-run this workflow."
+              exit 1 ;;
+            *)
+              echo "::error title=Supabase project not ready::Status '$status'. If the project was deleted, create a new one and set the SUPABASE_PROJECT_REF variable to its reference id."
+              exit 1 ;;
+          esac
+
+      - name: Create the rooms table
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        # The migration is idempotent, so applying it on every deploy is safe
+        # and means a new or restored project needs no manual step.
+        run: |
+          jq -n --rawfile sql supabase/migrations/0001_bahay_rooms.sql '{query: $sql}' > /tmp/migration.json
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            --data @/tmp/migration.json \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" > /dev/null
+
+      - name: Bundle the rules for the server
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        run: pnpm bundle:room
+
+      - name: Deploy the room server
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        # Players are not Supabase users, so the gateway's JWT check is off;
+        # the function holds the only key to the table and answers each
+        # player with their own view.
+        run: supabase functions deploy bahay-room --remote="$SUPABASE_PROJECT_REF" --no-verify-jwt --use-api --yes
+
+      - name: Look up the public address and key
+        id: keys
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        # The anon / publishable key is meant to ship inside apps. The
+        # service-role key in the same listing never leaves this pipe.
+        run: |
+          key=$(curl -sS --fail-with-body -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/api-keys" \
+            | jq -r '[.[] | select(.name == "anon" or .type == "publishable")][0].api_key')
+          if [ -z "$key" ] || [ "$key" = "null" ]; then
+            echo "::error::No anon or publishable key found for $SUPABASE_PROJECT_REF"; exit 1
+          fi
+          echo "url=https://$SUPABASE_PROJECT_REF.supabase.co" >> "$GITHUB_OUTPUT"
+          echo "anon_key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: Open a table on the live server
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        env:
+          URL: ${{ steps.keys.outputs.url }}
+          KEY: ${{ steps.keys.outputs.anon_key }}
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            reply=$(curl -sS -X POST "$URL/functions/v1/bahay-room" \
+              -H "Content-Type: application/json" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              -d '{"create":true,"playerId":"github-smoke-test","name":"CI"}' || true)
+            echo "$reply" | jq -c '{ok, code, error}' 2>/dev/null || echo "$reply" | head -c 300
+            if [ "$(echo "$reply" | jq -r '.ok' 2>/dev/null)" = "true" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::error title=Room server not answering::The function deployed but could not open a table. The reply above says why."
+          exit 1
+
+  build:
+    needs: [test, room]
+    # Build even when the room job was skipped (pull requests, other branches)
+    # or has not been set up; never publish over a room deploy that failed.
+    if: ${{ !cancelled() && needs.test.result == 'success' && needs.room.result != 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
 
       - name: Build the browser version
         env:
           EXPO_BASE_URL: ${{ vars.WEB_BASE_URL || format('/{0}', github.event.repository.name) }}
-          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ needs.room.outputs.url || vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ needs.room.outputs.anon_key || vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
           EXPO_PUBLIC_ROOM_URL: ${{ vars.EXPO_PUBLIC_ROOM_URL }}
         run: pnpm build:web
 
@@ -57,7 +179,7 @@ jobs:
 
   deploy:
     # Publish only what is on the default branch (or a manual run).
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
+    if: ${{ !cancelled() && needs.build.result == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)) }}
     needs: build
     runs-on: ubuntu-latest
     permissions:

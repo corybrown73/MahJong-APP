@@ -100,10 +100,18 @@ export const useRoom = create<RoomStore>((set, get) => {
       const action = event.action;
       if (action.type === 'CLAIM') {
         lastEventAt = event.at;
+        // The claimed tile is the latest discard; say which tile and whose.
+        const discard = view.game?.discards[view.game.discards.length - 1];
+        const from =
+          discard === undefined
+            ? ''
+            : discard.from === view.yourSeat
+              ? ' from you'
+              : ` from ${(view.seats[discard.from]?.name ?? '').toLowerCase()}`;
         return {
           seat: event.seat,
           headline: CALL_HEADLINES[action.call],
-          detail: view.seats[event.seat]?.name ?? '',
+          detail: discard ? `${describeTileShort(discard.tile)}${from}` : '',
         };
       }
       if (action.type === 'DECLARE_TODAS') {
@@ -446,3 +454,9 @@ function shadowState(view: RoomView, seat: SeatId) {
 }
 
 export { publicView, reduce };
+
+function describeTileShort(tile: { kind: string; suit?: string; rank?: number; face?: string }): string {
+  if (tile.kind !== 'suited') return tile.face ?? 'flower';
+  const names: Record<string, string> = { balls: 'bolá', sticks: 'kahoy', chars: 'letra' };
+  return `${tile.rank} ${names[tile.suit ?? ''] ?? ''}`.trim();
+}

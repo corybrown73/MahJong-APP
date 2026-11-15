@@ -58,7 +58,12 @@ const store = {
     const { error } = await db
       .from(TABLE)
       .insert({ code: room.code, state: room, version: room.version });
-    return !error;
+    if (!error) return true;
+    // A code collision is expected now and then: say so and let the caller
+    // try another code. Anything else — a missing table, a bad key — is a
+    // real fault and should be reported as one, not retried into a vague 503.
+    if (error.code === '23505') return false;
+    throw new Error(error.message);
   },
 
   async sweep(olderThan: number) {
